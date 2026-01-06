@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -14,30 +14,33 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { 
-  Plus, 
-  TrendingUp, 
-  Euro,
-  Loader2,
-  GripVertical,
-  Calendar
-} from 'lucide-react';
+import { Plus, Calendar, Loader2 } from 'lucide-react';
 import { useProfile } from '@/hooks/useOrganization';
-import { callN8nWebhook } from '@/lib/n8n';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { DEAL_STAGES, DEAL_STAGE_LABELS, formatCurrency, type DealStage } from '@/lib/constants';
+import type { Tables } from '@/integrations/supabase/types';
 
-const DEAL_STAGES = ['Lead', 'Qualification', 'Mandat', 'Négociation', 'Vendu', 'Perdu'] as const;
+type Deal = Tables<'deals'> & {
+  contacts?: { full_name: string } | null;
+};
 
 const dealSchema = z.object({
   name: z.string().min(2, 'Nom requis').max(100),
@@ -49,128 +52,119 @@ const dealSchema = z.object({
 
 type DealFormValues = z.infer<typeof dealSchema>;
 
-type Deal = {
-  id: string;
-  name: string;
-  amount: number;
-  commission_rate: number;
-  commission_amount: number;
-  stage: typeof DEAL_STAGES[number];
-  probability: number;
-  expected_close_date: string | null;
-  created_at: string;
-  contacts?: { full_name: string } | null;
-};
-
-function DealCard({ deal, onDragStart }: { deal: Deal; onDragStart: () => void }) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getProbabilityColor = (probability: number) => {
-    if (probability >= 80) return 'text-green-400';
-    if (probability >= 50) return 'text-orange-400';
+function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
+  const getProbabilityColor = (probability: number | null) => {
+    if (!probability) return 'text-muted-foreground';
+    if (probability >= 80) return 'text-success';
+    if (probability >= 50) return 'text-warning';
     return 'text-muted-foreground';
   };
 
   return (
-    <Card 
-      className="glass border-border/50 hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing"
-      draggable
-      onDragStart={onDragStart}
-    >
+    <Card className={`glass transition-all ${isDragging ? 'opacity-50 scale-105' : 'hover:border-primary/30'}`}>
       <CardContent className="p-3">
-        <div className="flex items-start gap-2">
-          <GripVertical className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate">{deal.name}</p>
-            <p className="text-lg font-display font-bold text-primary mt-1">
-              {formatCurrency(deal.amount)}
-            </p>
-            <div className="flex items-center justify-between mt-2 text-sm">
-              <span className="text-muted-foreground">
-                Commission: {formatCurrency(deal.commission_amount)}
-              </span>
-              <span className={getProbabilityColor(deal.probability)}>
-                {deal.probability}%
-              </span>
-            </div>
-            {deal.expected_close_date && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {new Date(deal.expected_close_date).toLocaleDateString('fr-FR')}
-              </p>
-            )}
+        <div className="space-y-2">
+          <p className="font-medium text-sm truncate">{deal.name}</p>
+          <p className="text-lg font-semibold text-primary">
+            {formatCurrency(deal.amount)}
+          </p>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground font-mono">
+              Com: {formatCurrency(deal.commission_amount || 0)}
+            </span>
+            <span className={getProbabilityColor(deal.probability)}>
+              {deal.probability || 0}%
+            </span>
           </div>
+          {deal.expected_close_date && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
+              <Calendar className="w-3 h-3" />
+              {new Date(deal.expected_close_date).toLocaleDateString('fr-FR')}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function KanbanColumn({ 
-  stage, 
-  deals, 
-  onDrop,
-  totalAmount
-}: { 
-  stage: typeof DEAL_STAGES[number]; 
-  deals: Deal[];
-  onDrop: (stage: typeof DEAL_STAGES[number]) => void;
-  totalAmount: number;
-}) {
-  const [isDragOver, setIsDragOver] = useState(false);
+function SortableDealCard({ deal }: { deal: Deal }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: deal.id });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getStageColor = (stage: string) => {
-    const colors: Record<string, string> = {
-      'Lead': 'border-l-blue-500',
-      'Qualification': 'border-l-purple-500',
-      'Mandat': 'border-l-green-500',
-      'Négociation': 'border-l-orange-500',
-      'Vendu': 'border-l-primary',
-      'Perdu': 'border-l-red-500',
-    };
-    return colors[stage] || '';
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
 
   return (
-    <div 
-      className={`flex-1 min-w-[280px] max-w-[300px] rounded-lg border-l-4 transition-colors ${getStageColor(stage)} ${
-        isDragOver ? 'border-r border-t border-b border-primary bg-primary/5' : 'border-r border-t border-b border-border bg-card/50'
-      }`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragOver(true);
-      }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={() => {
-        setIsDragOver(false);
-        onDrop(stage);
-      }}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing"
     >
-      <div className="p-3 border-b border-border">
+      <DealCard deal={deal} isDragging={isDragging} />
+    </div>
+  );
+}
+
+function KanbanColumn({ 
+  stage, 
+  deals, 
+  totalAmount 
+}: { 
+  stage: DealStage; 
+  deals: Deal[];
+  totalAmount: number;
+}) {
+  const getStageColor = (stage: DealStage) => {
+    const colors: Record<DealStage, string> = {
+      nouveau: 'border-l-blue-500',
+      estimation: 'border-l-purple-500',
+      mandat: 'border-l-green-500',
+      visite: 'border-l-cyan-500',
+      offre: 'border-l-yellow-500',
+      negociation: 'border-l-orange-500',
+      compromis: 'border-l-pink-500',
+      vendu: 'border-l-emerald-500',
+      perdu: 'border-l-red-500',
+    };
+    return colors[stage];
+  };
+
+  return (
+    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/5`}>
+      <div className="p-3 border-b border-white/5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-medium text-foreground">{stage}</h3>
-          <Badge variant="secondary">{deals.length}</Badge>
+          <h3 className="font-medium text-sm">{DEAL_STAGE_LABELS[stage]}</h3>
+          <Badge variant="secondary" className="text-xs font-mono">{deals.length}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">{formatCurrency(totalAmount)}</p>
+        <p className="text-xs text-muted-foreground font-mono">{formatCurrency(totalAmount)}</p>
       </div>
-      <div className="p-2 space-y-2 max-h-[calc(100vh-350px)] overflow-y-auto">
-        {deals.map((deal) => (
-          <DealCard key={deal.id} deal={deal} onDragStart={() => {}} />
-        ))}
+      <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-350px)] overflow-y-auto">
+        <SortableContext items={deals.map(d => d.id)} strategy={verticalListSortingStrategy}>
+          <AnimatePresence mode="popLayout">
+            {deals.map((deal) => (
+              <motion.div
+                key={deal.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+              >
+                <SortableDealCard deal={deal} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </SortableContext>
       </div>
     </div>
   );
@@ -178,10 +172,18 @@ function KanbanColumn({
 
 export default function Deals() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [draggedDeal, setDraggedDeal] = useState<Deal | null>(null);
-  const { toast } = useToast();
+  const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealSchema),
@@ -207,11 +209,29 @@ export default function Deals() {
     },
   });
 
+  // Subscribe to realtime updates
+  const { data: realtimeDeals } = useQuery({
+    queryKey: ['deals-realtime'],
+    queryFn: async () => {
+      const channel = supabase
+        .channel('deals-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
+          queryClient.invalidateQueries({ queryKey: ['deals'] });
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    },
+    staleTime: Infinity,
+  });
+
   const createMutation = useMutation({
     mutationFn: async (values: DealFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organization not found');
+      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('deals')
         .insert({
           name: values.name,
@@ -220,28 +240,25 @@ export default function Deals() {
           probability: values.probability,
           expected_close_date: values.expected_close_date || null,
           organization_id: profile.organization_id,
-          stage: 'Lead' as const,
-        })
-        .select()
-        .single();
+          stage: 'nouveau',
+        });
 
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       setIsDialogOpen(false);
       form.reset();
-      toast({ title: 'Deal créé avec succès' });
+      toast.success('Opportunité créée avec succès');
     },
     onError: (error) => {
-      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+      toast.error(`Erreur: ${error.message}`);
     },
   });
 
   const updateStageMutation = useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: typeof DEAL_STAGES[number] }) => {
-      const probability = stage === 'Vendu' ? 100 : stage === 'Perdu' ? 0 : undefined;
+    mutationFn: async ({ id, stage }: { id: string; stage: DealStage }) => {
+      const probability = stage === 'vendu' ? 100 : stage === 'perdu' ? 0 : undefined;
       
       const { error } = await supabase
         .from('deals')
@@ -249,39 +266,72 @@ export default function Deals() {
         .eq('id', id);
 
       if (error) throw error;
-
-      // Trigger n8n when generating mandate
-      if (stage === 'Mandat') {
-        await callN8nWebhook('generate_mandate', { dealId: id });
-      }
     },
-    onSuccess: () => {
+    onMutate: async ({ id, stage }) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['deals'] });
+      const previousDeals = queryClient.getQueryData<Deal[]>(['deals']);
+      
+      queryClient.setQueryData<Deal[]>(['deals'], (old) =>
+        old?.map((deal) => (deal.id === id ? { ...deal, stage } : deal))
+      );
+      
+      return { previousDeals };
+    },
+    onError: (error, _, context) => {
+      queryClient.setQueryData(['deals'], context?.previousDeals);
+      toast.error('Erreur lors de la mise à jour');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
     },
   });
 
-  const dealsByStage = DEAL_STAGES.reduce((acc, stage) => {
-    acc[stage] = deals?.filter((d) => d.stage === stage) || [];
-    return acc;
-  }, {} as Record<typeof DEAL_STAGES[number], Deal[]>);
+  const dealsByStage = useMemo(() => {
+    return DEAL_STAGES.reduce((acc, stage) => {
+      acc[stage] = deals?.filter((d) => d.stage === stage) || [];
+      return acc;
+    }, {} as Record<DealStage, Deal[]>);
+  }, [deals]);
 
-  const totalAmountByStage = (stage: typeof DEAL_STAGES[number]) => {
+  const totalAmountByStage = (stage: DealStage) => {
     return dealsByStage[stage].reduce((sum, deal) => sum + deal.amount, 0);
   };
 
-  const totalPipeline = deals?.reduce((sum, deal) => {
-    if (deal.stage !== 'Vendu' && deal.stage !== 'Perdu') {
-      return sum + deal.amount * (deal.probability / 100);
-    }
-    return sum;
-  }, 0) || 0;
+  const totalPipeline = useMemo(() => {
+    return deals?.reduce((sum, deal) => {
+      if (deal.stage !== 'vendu' && deal.stage !== 'perdu') {
+        return sum + deal.amount * ((deal.probability || 0) / 100);
+      }
+      return sum;
+    }, 0) || 0;
+  }, [deals]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const handleDragStart = (event: DragStartEvent) => {
+    const deal = deals?.find((d) => d.id === event.active.id);
+    if (deal) setActiveDeal(deal);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDeal(null);
+    
+    if (!over) return;
+    
+    const draggedDealId = active.id as string;
+    const overId = over.id as string;
+    
+    // Check if dropped over a column (stage)
+    const targetStage = DEAL_STAGES.find((stage) => 
+      dealsByStage[stage].some((d) => d.id === overId) || stage === overId
+    );
+    
+    if (targetStage) {
+      const draggedDeal = deals?.find((d) => d.id === draggedDealId);
+      if (draggedDeal && draggedDeal.stage !== targetStage) {
+        updateStageMutation.mutate({ id: draggedDealId, stage: targetStage });
+      }
+    }
   };
 
   return (
@@ -290,21 +340,21 @@ export default function Deals() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Deals</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Pipeline</h1>
             <p className="text-muted-foreground">
-              Pipeline pondéré: <span className="text-primary font-medium">{formatCurrency(totalPipeline)}</span>
+              Pondéré: <span className="text-primary font-medium font-mono">{formatCurrency(totalPipeline)}</span>
             </p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                Nouveau Deal
+                Nouvelle opportunité
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Créer un Deal</DialogTitle>
+                <DialogTitle>Créer une opportunité</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
@@ -313,7 +363,7 @@ export default function Deals() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nom du deal *</FormLabel>
+                        <FormLabel>Nom *</FormLabel>
                         <FormControl>
                           <Input placeholder="Vente Appartement Dupont" {...field} />
                         </FormControl>
@@ -386,7 +436,7 @@ export default function Deals() {
                       name="expected_close_date"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Date de clôture prévue</FormLabel>
+                          <FormLabel>Date clôture</FormLabel>
                           <FormControl>
                             <Input type="date" {...field} />
                           </FormControl>
@@ -397,7 +447,7 @@ export default function Deals() {
                   </div>
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer le deal
+                    Créer l'opportunité
                   </Button>
                 </form>
               </Form>
@@ -405,32 +455,36 @@ export default function Deals() {
           </Dialog>
         </div>
 
-        {/* Kanban */}
+        {/* Kanban Board */}
         {isLoading ? (
           <div className="flex gap-4 overflow-x-auto pb-4">
             {DEAL_STAGES.map((stage) => (
-              <div key={stage} className="flex-1 min-w-[280px] max-w-[300px]">
+              <div key={stage} className="flex-shrink-0 w-72">
                 <Skeleton className="h-[400px] w-full" />
               </div>
             ))}
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {DEAL_STAGES.map((stage) => (
-              <KanbanColumn
-                key={stage}
-                stage={stage}
-                deals={dealsByStage[stage]}
-                totalAmount={totalAmountByStage(stage)}
-                onDrop={(newStage) => {
-                  if (draggedDeal) {
-                    updateStageMutation.mutate({ id: draggedDeal.id, stage: newStage });
-                    setDraggedDeal(null);
-                  }
-                }}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {DEAL_STAGES.map((stage) => (
+                <KanbanColumn
+                  key={stage}
+                  stage={stage}
+                  deals={dealsByStage[stage]}
+                  totalAmount={totalAmountByStage(stage)}
+                />
+              ))}
+            </div>
+            <DragOverlay>
+              {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </div>
     </DashboardLayout>

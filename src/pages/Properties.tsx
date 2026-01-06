@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -31,21 +31,20 @@ import {
   Plus, 
   Search, 
   Home, 
-  MapPin, 
   Bed,
   Square,
-  Euro,
   Loader2,
   Building2
 } from 'lucide-react';
 import { useProfile } from '@/hooks/useOrganization';
+import { PROPERTY_TYPES, PROPERTY_STATUSES, formatCurrency } from '@/lib/constants';
+import type { Tables } from '@/integrations/supabase/types';
 
-const PROPERTY_TYPES = ['Appartement', 'Maison', 'Terrain', 'Commerce', 'Immeuble'] as const;
-const PROPERTY_STATUSES = ['Estimation', 'Mandat', 'Sous Offre', 'Vendu', 'Archivé'] as const;
+type Property = Tables<'properties'>;
 
 const propertySchema = z.object({
   address: z.string().min(5, 'Adresse requise').max(255),
-  type: z.enum(PROPERTY_TYPES),
+  type: z.enum(['Appartement', 'Maison', 'Terrain', 'Commerce', 'Immeuble']),
   price: z.number().min(0).optional(),
   surface_m2: z.number().min(0).optional(),
   rooms: z.number().min(0).optional(),
@@ -55,56 +54,35 @@ const propertySchema = z.object({
 
 type PropertyFormValues = z.infer<typeof propertySchema>;
 
-type Property = {
-  id: string;
-  address: string;
-  type: typeof PROPERTY_TYPES[number] | null;
-  status: typeof PROPERTY_STATUSES[number];
-  price: number | null;
-  surface_m2: number | null;
-  rooms: number | null;
-  bedrooms: number | null;
-  description: string | null;
-  photos_url: string[] | null;
-  created_at: string;
-};
-
 function PropertyCard({ property }: { property: Property }) {
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     const colors: Record<string, string> = {
-      'Estimation': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'Mandat': 'bg-green-500/20 text-green-400 border-green-500/30',
-      'Sous Offre': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+      'Estimation': 'bg-info/20 text-info border-info/30',
+      'Mandat': 'bg-success/20 text-success border-success/30',
+      'Sous Offre': 'bg-warning/20 text-warning border-warning/30',
       'Vendu': 'bg-primary/20 text-primary border-primary/30',
       'Archivé': 'bg-muted text-muted-foreground border-muted',
     };
-    return colors[status] || 'bg-muted text-muted-foreground';
-  };
-
-  const formatPrice = (price: number | null) => {
-    if (!price) return 'Prix non défini';
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(price);
+    return colors[status || ''] || 'bg-muted text-muted-foreground';
   };
 
   return (
-    <Card className="glass border-border/50 hover:border-primary/30 transition-all group overflow-hidden">
-      <div className="h-40 bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
-        <Home className="w-12 h-12 text-muted-foreground/50" />
+    <Card className="glass hover:border-primary/30 transition-all group overflow-hidden">
+      <div className="h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
+        <Home className="w-10 h-10 text-muted-foreground/40" />
       </div>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-2">
-          <Badge className={getStatusColor(property.status)}>{property.status}</Badge>
-          {property.type && <Badge variant="outline">{property.type}</Badge>}
+          <Badge className={`text-xs ${getStatusColor(property.status)}`}>
+            {property.status}
+          </Badge>
+          {property.type && <Badge variant="outline" className="text-xs">{property.type}</Badge>}
         </div>
-        <p className="font-medium text-foreground line-clamp-2 mb-2">{property.address}</p>
-        <p className="text-xl font-display font-bold text-primary mb-3">
-          {formatPrice(property.price)}
+        <p className="font-medium text-sm line-clamp-2 mb-2">{property.address}</p>
+        <p className="text-lg font-semibold text-primary mb-3">
+          {property.price ? formatCurrency(property.price) : 'Prix non défini'}
         </p>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
           {property.surface_m2 && (
             <span className="flex items-center gap-1">
               <Square className="w-3 h-3" />
@@ -114,13 +92,13 @@ function PropertyCard({ property }: { property: Property }) {
           {property.rooms && (
             <span className="flex items-center gap-1">
               <Building2 className="w-3 h-3" />
-              {property.rooms} pièces
+              {property.rooms}p
             </span>
           )}
           {property.bedrooms && (
             <span className="flex items-center gap-1">
               <Bed className="w-3 h-3" />
-              {property.bedrooms}
+              {property.bedrooms}ch
             </span>
           )}
         </div>
@@ -133,7 +111,6 @@ export default function Properties() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
 
@@ -165,9 +142,9 @@ export default function Properties() {
 
   const createMutation = useMutation({
     mutationFn: async (values: PropertyFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organization not found');
+      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('properties')
         .insert({
           address: values.address,
@@ -178,22 +155,19 @@ export default function Properties() {
           bedrooms: values.bedrooms || null,
           description: values.description || null,
           organization_id: profile.organization_id,
-          status: 'Estimation' as const,
-        })
-        .select()
-        .single();
+          status: 'Estimation',
+        });
 
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       setIsDialogOpen(false);
       form.reset();
-      toast({ title: 'Bien créé avec succès' });
+      toast.success('Bien créé avec succès');
     },
     onError: (error) => {
-      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+      toast.error(`Erreur: ${error.message}`);
     },
   });
 
@@ -205,23 +179,23 @@ export default function Properties() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Biens</h1>
-            <p className="text-muted-foreground">Gérez votre portefeuille immobilier</p>
+            <h1 className="text-3xl font-semibold tracking-tight">Biens</h1>
+            <p className="text-muted-foreground">{properties?.length || 0} biens en portefeuille</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                Nouveau Bien
+                Nouveau bien
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Ajouter un Bien</DialogTitle>
+                <DialogTitle>Ajouter un bien</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
@@ -232,7 +206,7 @@ export default function Properties() {
                       <FormItem>
                         <FormLabel>Adresse *</FormLabel>
                         <FormControl>
-                          <Input placeholder="123 rue de la Paix, 75001 Paris" {...field} />
+                          <Input placeholder="123 rue de la Paix, Paris" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -248,7 +222,7 @@ export default function Properties() {
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner" />
+                                <SelectValue />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -286,7 +260,7 @@ export default function Properties() {
                       name="surface_m2"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Surface (m²)</FormLabel>
+                          <FormLabel>Surface</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -343,7 +317,7 @@ export default function Properties() {
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Description du bien..." {...field} />
+                          <Textarea placeholder="Description..." {...field} rows={3} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -361,10 +335,10 @@ export default function Properties() {
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher par adresse..."
+              placeholder="Rechercher..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -372,7 +346,7 @@ export default function Properties() {
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filtrer par statut" />
+              <SelectValue placeholder="Statut" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous les statuts</SelectItem>
@@ -385,24 +359,24 @@ export default function Properties() {
 
         {/* Properties Grid */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-[300px] w-full" />
+              <Skeleton key={i} className="h-[280px] w-full" />
             ))}
           </div>
         ) : filteredProperties?.length === 0 ? (
-          <Card className="glass border-border/50">
+          <Card className="glass">
             <CardContent className="py-12 text-center">
-              <Home className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="text-muted-foreground">Aucun bien trouvé</p>
-              <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
+              <Home className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Aucun bien trouvé</p>
+              <Button className="mt-4" size="sm" onClick={() => setIsDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Ajouter un bien
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProperties?.map((property) => (
               <PropertyCard key={property.id} property={property} />
             ))}

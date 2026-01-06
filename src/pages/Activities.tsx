@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -40,29 +40,21 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useProfile } from '@/hooks/useOrganization';
-import { callN8nWebhook } from '@/lib/n8n';
+import { ACTIVITY_TYPES, ACTIVITY_STATUSES } from '@/lib/constants';
+import type { Tables } from '@/integrations/supabase/types';
 
-const ACTIVITY_TYPES = ['Call', 'SMS', 'Email', 'Meeting', 'Visite', 'Relance'] as const;
-const ACTIVITY_STATUSES = ['À faire', 'En cours', 'Terminé', 'Annulé'] as const;
-
-const activitySchema = z.object({
-  type: z.enum(ACTIVITY_TYPES),
-  content: z.string().max(500).optional(),
-  status: z.enum(ACTIVITY_STATUSES).default('À faire'),
-});
-
-type ActivityFormValues = z.infer<typeof activitySchema>;
-
-type Activity = {
-  id: string;
-  type: typeof ACTIVITY_TYPES[number];
-  status: typeof ACTIVITY_STATUSES[number];
-  content: string | null;
-  date: string;
-  created_at: string;
+type Activity = Tables<'activities'> & {
   contacts?: { full_name: string } | null;
   properties?: { address: string } | null;
 };
+
+const activitySchema = z.object({
+  type: z.enum(['Call', 'SMS', 'Email', 'Meeting', 'Visite', 'Relance']),
+  content: z.string().max(500).optional(),
+  status: z.enum(['À faire', 'En cours', 'Terminé', 'Annulé']).default('À faire'),
+});
+
+type ActivityFormValues = z.infer<typeof activitySchema>;
 
 function getActivityIcon(type: string) {
   const icons: Record<string, React.ElementType> = {
@@ -78,9 +70,9 @@ function getActivityIcon(type: string) {
 
 function getStatusColor(status: string) {
   const colors: Record<string, string> = {
-    'À faire': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'En cours': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-    'Terminé': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'À faire': 'bg-info/20 text-info border-info/30',
+    'En cours': 'bg-warning/20 text-warning border-warning/30',
+    'Terminé': 'bg-success/20 text-success border-success/30',
     'Annulé': 'bg-muted text-muted-foreground border-muted',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
@@ -92,23 +84,25 @@ function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete
 
   return (
     <div className={`flex items-start gap-4 p-4 rounded-lg transition-colors ${
-      isCompleted ? 'bg-muted/20' : 'bg-card hover:bg-muted/30'
+      isCompleted ? 'bg-secondary/30' : 'bg-card hover:bg-secondary/50'
     }`}>
-      <div className={`p-2 rounded-lg ${isCompleted ? 'bg-green-500/10' : 'bg-primary/10'}`}>
-        <Icon className={`w-5 h-5 ${isCompleted ? 'text-green-400' : 'text-primary'}`} />
+      <div className={`p-2 rounded-lg ${isCompleted ? 'bg-success/10' : 'bg-primary/10'}`}>
+        <Icon className={`w-4 h-4 ${isCompleted ? 'text-success' : 'text-primary'}`} />
       </div>
       
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-foreground">{activity.type}</span>
-          <Badge className={getStatusColor(activity.status)}>{activity.status}</Badge>
+          <span className="font-medium text-sm">{activity.type}</span>
+          <Badge className={`text-xs ${getStatusColor(activity.status || '')}`}>
+            {activity.status}
+          </Badge>
         </div>
         
         {activity.content && (
           <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{activity.content}</p>
         )}
         
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
           {activity.contacts?.full_name && (
             <span>{activity.contacts.full_name}</span>
           )}
@@ -118,12 +112,14 @@ function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete
               {activity.properties.address}
             </span>
           )}
-          <span>{formatDistanceToNow(new Date(activity.date), { addSuffix: true, locale: fr })}</span>
+          {activity.date && (
+            <span>{formatDistanceToNow(new Date(activity.date), { addSuffix: true, locale: fr })}</span>
+          )}
         </div>
       </div>
 
       {!isCompleted && (
-        <Button size="sm" variant="ghost" onClick={onComplete}>
+        <Button size="icon" variant="ghost" onClick={onComplete} className="h-8 w-8">
           <CheckCircle2 className="w-4 h-4" />
         </Button>
       )}
@@ -134,7 +130,6 @@ function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete
 export default function Activities() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
 
@@ -166,9 +161,9 @@ export default function Activities() {
 
   const createMutation = useMutation({
     mutationFn: async (values: ActivityFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organization not found');
+      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('activities')
         .insert({
           type: values.type,
@@ -177,21 +172,18 @@ export default function Activities() {
           organization_id: profile.organization_id,
           created_by: profile.id,
           date: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
       setIsDialogOpen(false);
       form.reset();
-      toast({ title: 'Activité créée' });
+      toast.success('Activité créée');
     },
     onError: (error) => {
-      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+      toast.error(`Erreur: ${error.message}`);
     },
   });
 
@@ -206,7 +198,7 @@ export default function Activities() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
-      toast({ title: 'Activité terminée' });
+      toast.success('Activité terminée');
     },
   });
 
@@ -218,16 +210,16 @@ export default function Activities() {
   const todoCount = activities?.filter((a) => a.status === 'À faire').length || 0;
   const completedToday = activities?.filter((a) => {
     const today = new Date().toDateString();
-    return a.status === 'Terminé' && new Date(a.date).toDateString() === today;
+    return a.status === 'Terminé' && a.date && new Date(a.date).toDateString() === today;
   }).length || 0;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Activités</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Activités</h1>
             <p className="text-muted-foreground">
               {todoCount} à faire • {completedToday} terminées aujourd'hui
             </p>
@@ -236,12 +228,12 @@ export default function Activities() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                Nouvelle Activité
+                Nouvelle activité
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Créer une Activité</DialogTitle>
+                <DialogTitle>Créer une activité</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
@@ -254,7 +246,7 @@ export default function Activities() {
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Sélectionner" />
+                              <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -274,10 +266,7 @@ export default function Activities() {
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="Détails de l'activité..."
-                            {...field} 
-                          />
+                          <Textarea placeholder="Détails..." {...field} rows={3} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -329,7 +318,7 @@ export default function Activities() {
         </Select>
 
         {/* Activities List */}
-        <Card className="glass border-border/50">
+        <Card className="glass">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-4 space-y-3">
@@ -339,15 +328,15 @@ export default function Activities() {
               </div>
             ) : filteredActivities?.length === 0 ? (
               <div className="p-12 text-center">
-                <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-muted-foreground">Aucune activité</p>
-                <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
+                <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Aucune activité</p>
+                <Button className="mt-4" size="sm" onClick={() => setIsDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Créer une activité
                 </Button>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-white/5">
                 {filteredActivities?.map((activity) => (
                   <ActivityItem 
                     key={activity.id} 
