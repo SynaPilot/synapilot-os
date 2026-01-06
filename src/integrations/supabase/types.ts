@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          organization_id: string
+          sector: string | null
+          type: Database["public"]["Enums"]["compte_type"] | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          sector?: string | null
+          type?: Database["public"]["Enums"]["compte_type"] | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          sector?: string | null
+          type?: Database["public"]["Enums"]["compte_type"] | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comptes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activities: {
         Row: {
           assigned_to: string | null
@@ -92,40 +133,37 @@ export type Database = {
           },
         ]
       }
-      comptes: {
+      audit_logs: {
         Row: {
-          created_at: string | null
+          action: string
+          created_at: string
+          details: Json | null
+          entity: string
           id: string
-          name: string
           organization_id: string
-          sector: string | null
-          type: Database["public"]["Enums"]["compte_type"] | null
-          updated_at: string | null
-          website: string | null
+          user_id: string | null
         }
         Insert: {
-          created_at?: string | null
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity: string
           id?: string
-          name: string
           organization_id: string
-          sector?: string | null
-          type?: Database["public"]["Enums"]["compte_type"] | null
-          updated_at?: string | null
-          website?: string | null
+          user_id?: string | null
         }
         Update: {
-          created_at?: string | null
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity?: string
           id?: string
-          name?: string
           organization_id?: string
-          sector?: string | null
-          type?: Database["public"]["Enums"]["compte_type"] | null
-          updated_at?: string | null
-          website?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "comptes_organization_id_fkey"
+            foreignKeyName: "audit_logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -282,7 +320,7 @@ export type Database = {
           },
         ]
       }
-      mois: {
+      months: {
         Row: {
           ca_total: number | null
           conversion_rate: number | null
@@ -490,6 +528,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_auth_user_org_id: { Args: never; Returns: string }
       get_user_org_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -504,15 +543,24 @@ export type Database = {
       activity_type: "Call" | "SMS" | "Email" | "Meeting" | "Visite" | "Relance"
       app_role: "Admin" | "Manager" | "Agent"
       compte_type: "Particulier" | "Entreprise" | "SCI"
-      contact_role: "Vendeur" | "Acheteur" | "Investisseur"
+      contact_role: "Acheteur" | "Vendeur" | "Investisseur" | "Locataire"
       deal_stage:
-        | "Lead"
-        | "Qualification"
-        | "Mandat"
-        | "Négociation"
-        | "Vendu"
-        | "Perdu"
-      pipeline_stage: "Nouveau" | "Qualifié" | "Visite" | "Offre" | "Clos"
+        | "nouveau"
+        | "estimation"
+        | "mandat"
+        | "visite"
+        | "offre"
+        | "negociation"
+        | "compromis"
+        | "vendu"
+        | "perdu"
+      pipeline_stage:
+        | "lead"
+        | "contacted"
+        | "qualified"
+        | "proposal"
+        | "won"
+        | "lost"
       property_status:
         | "Estimation"
         | "Mandat"
@@ -656,16 +704,26 @@ export const Constants = {
       activity_type: ["Call", "SMS", "Email", "Meeting", "Visite", "Relance"],
       app_role: ["Admin", "Manager", "Agent"],
       compte_type: ["Particulier", "Entreprise", "SCI"],
-      contact_role: ["Vendeur", "Acheteur", "Investisseur"],
+      contact_role: ["Acheteur", "Vendeur", "Investisseur", "Locataire"],
       deal_stage: [
-        "Lead",
-        "Qualification",
-        "Mandat",
-        "Négociation",
-        "Vendu",
-        "Perdu",
+        "nouveau",
+        "estimation",
+        "mandat",
+        "visite",
+        "offre",
+        "negociation",
+        "compromis",
+        "vendu",
+        "perdu",
       ],
-      pipeline_stage: ["Nouveau", "Qualifié", "Visite", "Offre", "Clos"],
+      pipeline_stage: [
+        "lead",
+        "contacted",
+        "qualified",
+        "proposal",
+        "won",
+        "lost",
+      ],
       property_status: [
         "Estimation",
         "Mandat",

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -34,21 +34,39 @@ import {
   Phone, 
   Mail, 
   User, 
-  GripVertical,
-  Loader2,
-  MessageSquare
+  Loader2
 } from 'lucide-react';
 import { useProfile } from '@/hooks/useOrganization';
-import { callN8nWebhook } from '@/lib/n8n';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { 
+  PIPELINE_STAGES, 
+  PIPELINE_STAGE_LABELS, 
+  CONTACT_ROLES,
+  formatRelativeDate,
+  type PipelineStage 
+} from '@/lib/constants';
+import type { Tables } from '@/integrations/supabase/types';
 
-const PIPELINE_STAGES = ['Nouveau', 'Qualifié', 'Visite', 'Offre', 'Clos'] as const;
-const CONTACT_ROLES = ['Vendeur', 'Acheteur', 'Investisseur'] as const;
+type Contact = Tables<'contacts'>;
 
 const contactSchema = z.object({
   full_name: z.string().min(2, 'Nom requis').max(100),
   email: z.string().email('Email invalide').optional().or(z.literal('')),
   phone: z.string().max(20).optional(),
-  role: z.enum(CONTACT_ROLES).optional(),
+  role: z.enum(['Acheteur', 'Vendeur', 'Investisseur', 'Locataire']).optional(),
   urgency_score: z.number().min(0).max(10).default(0),
   source: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
@@ -56,53 +74,34 @@ const contactSchema = z.object({
 
 type ContactFormValues = z.infer<typeof contactSchema>;
 
-type Contact = {
-  id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-  role: 'Vendeur' | 'Acheteur' | 'Investisseur' | null;
-  pipeline_stage: 'Nouveau' | 'Qualifié' | 'Visite' | 'Offre' | 'Clos';
-  urgency_score: number;
-  source: string | null;
-  notes: string | null;
-  created_at: string;
-};
-
-function LeadCard({ contact, onDragStart }: { contact: Contact; onDragStart: () => void }) {
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return 'bg-red-500/20 text-red-400 border-red-500/30';
-    if (score >= 5) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: boolean }) {
+  const getScoreColor = (score: number | null) => {
+    if (!score) return 'bg-muted text-muted-foreground';
+    if (score >= 8) return 'bg-destructive/20 text-destructive border-destructive/30';
+    if (score >= 5) return 'bg-warning/20 text-warning border-warning/30';
     return 'bg-muted text-muted-foreground';
   };
 
   return (
-    <Card 
-      className="glass border-border/50 hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing"
-      draggable
-      onDragStart={onDragStart}
-    >
+    <Card className={`glass transition-all ${isDragging ? 'opacity-50 scale-105' : 'hover:border-primary/30'}`}>
       <CardContent className="p-3">
-        <div className="flex items-start gap-2">
-          <GripVertical className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate">{contact.full_name}</p>
-            {contact.phone && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                {contact.phone}
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-2">
-              {contact.role && (
-                <Badge variant="outline" className="text-xs">
-                  {contact.role}
-                </Badge>
-              )}
-              <Badge className={`text-xs ${getScoreColor(contact.urgency_score)}`}>
-                {contact.urgency_score}/10
+        <div className="space-y-2">
+          <p className="font-medium text-sm truncate">{contact.full_name}</p>
+          {contact.phone && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
+              <Phone className="w-3 h-3" />
+              {contact.phone}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            {contact.role && (
+              <Badge variant="outline" className="text-xs">
+                {contact.role}
               </Badge>
-            </div>
+            )}
+            <Badge className={`text-xs ${getScoreColor(contact.urgency_score)}`}>
+              {contact.urgency_score || 0}/10
+            </Badge>
           </div>
         </div>
       </CardContent>
@@ -110,42 +109,77 @@ function LeadCard({ contact, onDragStart }: { contact: Contact; onDragStart: () 
   );
 }
 
-function KanbanColumn({ 
-  stage, 
-  contacts, 
-  onDrop 
-}: { 
-  stage: typeof PIPELINE_STAGES[number]; 
-  contacts: Contact[];
-  onDrop: (stage: typeof PIPELINE_STAGES[number]) => void;
-}) {
-  const [isDragOver, setIsDragOver] = useState(false);
+function SortableContactCard({ contact }: { contact: Contact }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: contact.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
-    <div 
-      className={`flex-1 min-w-[280px] max-w-[320px] rounded-lg border transition-colors ${
-        isDragOver ? 'border-primary bg-primary/5' : 'border-border bg-card/50'
-      }`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragOver(true);
-      }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={() => {
-        setIsDragOver(false);
-        onDrop(stage);
-      }}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing"
     >
-      <div className="p-3 border-b border-border">
+      <ContactCard contact={contact} isDragging={isDragging} />
+    </div>
+  );
+}
+
+function KanbanColumn({ 
+  stage, 
+  contacts 
+}: { 
+  stage: PipelineStage; 
+  contacts: Contact[];
+}) {
+  const getStageColor = (stage: PipelineStage) => {
+    const colors: Record<PipelineStage, string> = {
+      lead: 'border-l-blue-500',
+      contacted: 'border-l-purple-500',
+      qualified: 'border-l-cyan-500',
+      proposal: 'border-l-orange-500',
+      won: 'border-l-emerald-500',
+      lost: 'border-l-red-500',
+    };
+    return colors[stage];
+  };
+
+  return (
+    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/5`}>
+      <div className="p-3 border-b border-white/5">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-foreground">{stage}</h3>
-          <Badge variant="secondary">{contacts.length}</Badge>
+          <h3 className="font-medium text-sm">{PIPELINE_STAGE_LABELS[stage]}</h3>
+          <Badge variant="secondary" className="text-xs font-mono">{contacts.length}</Badge>
         </div>
       </div>
-      <div className="p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
-        {contacts.map((contact) => (
-          <LeadCard key={contact.id} contact={contact} onDragStart={() => {}} />
-        ))}
+      <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-380px)] overflow-y-auto">
+        <SortableContext items={contacts.map(c => c.id)} strategy={verticalListSortingStrategy}>
+          <AnimatePresence mode="popLayout">
+            {contacts.map((contact) => (
+              <motion.div
+                key={contact.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+              >
+                <SortableContactCard contact={contact} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </SortableContext>
       </div>
     </div>
   );
@@ -154,10 +188,18 @@ function KanbanColumn({
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [draggedContact, setDraggedContact] = useState<Contact | null>(null);
-  const { toast } = useToast();
+  const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -186,9 +228,9 @@ export default function Leads() {
 
   const createMutation = useMutation({
     mutationFn: async (values: ContactFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organization not found');
+      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('contacts')
         .insert({
           full_name: values.full_name,
@@ -199,54 +241,90 @@ export default function Leads() {
           source: values.source || null,
           notes: values.notes || null,
           organization_id: profile.organization_id,
-          pipeline_stage: 'Nouveau' as const,
-        })
-        .select()
-        .single();
+          pipeline_stage: 'lead',
+        });
 
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsDialogOpen(false);
       form.reset();
-      toast({ title: 'Lead créé avec succès' });
+      toast.success('Lead créé avec succès');
     },
     onError: (error) => {
-      toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+      toast.error(`Erreur: ${error.message}`);
     },
   });
 
   const updateStageMutation = useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: typeof PIPELINE_STAGES[number] }) => {
+    mutationFn: async ({ id, stage }: { id: string; stage: PipelineStage }) => {
       const { error } = await supabase
         .from('contacts')
         .update({ pipeline_stage: stage })
         .eq('id', id);
 
       if (error) throw error;
-
-      // Trigger n8n webhook when qualifying
-      if (stage === 'Qualifié') {
-        await callN8nWebhook('qualify_lead', { contactId: id });
-      }
     },
-    onSuccess: () => {
+    onMutate: async ({ id, stage }) => {
+      await queryClient.cancelQueries({ queryKey: ['contacts'] });
+      const previousContacts = queryClient.getQueryData<Contact[]>(['contacts']);
+      
+      queryClient.setQueryData<Contact[]>(['contacts'], (old) =>
+        old?.map((contact) => (contact.id === id ? { ...contact, pipeline_stage: stage } : contact))
+      );
+      
+      return { previousContacts };
+    },
+    onError: (error, _, context) => {
+      queryClient.setQueryData(['contacts'], context?.previousContacts);
+      toast.error('Erreur lors de la mise à jour');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
 
-  const filteredContacts = contacts?.filter((c) =>
-    c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone?.includes(searchQuery)
-  );
+  const filteredContacts = useMemo(() => {
+    return contacts?.filter((c) =>
+      c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone?.includes(searchQuery)
+    );
+  }, [contacts, searchQuery]);
 
-  const contactsByStage = PIPELINE_STAGES.reduce((acc, stage) => {
-    acc[stage] = filteredContacts?.filter((c) => c.pipeline_stage === stage) || [];
-    return acc;
-  }, {} as Record<typeof PIPELINE_STAGES[number], Contact[]>);
+  const contactsByStage = useMemo(() => {
+    return PIPELINE_STAGES.reduce((acc, stage) => {
+      acc[stage] = filteredContacts?.filter((c) => c.pipeline_stage === stage) || [];
+      return acc;
+    }, {} as Record<PipelineStage, Contact[]>);
+  }, [filteredContacts]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const contact = contacts?.find((c) => c.id === event.active.id);
+    if (contact) setActiveContact(contact);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveContact(null);
+    
+    if (!over) return;
+    
+    const draggedContactId = active.id as string;
+    const overId = over.id as string;
+    
+    const targetStage = PIPELINE_STAGES.find((stage) => 
+      contactsByStage[stage].some((c) => c.id === overId) || stage === overId
+    );
+    
+    if (targetStage) {
+      const draggedContact = contacts?.find((c) => c.id === draggedContactId);
+      if (draggedContact && draggedContact.pipeline_stage !== targetStage) {
+        updateStageMutation.mutate({ id: draggedContactId, stage: targetStage });
+      }
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -254,19 +332,19 @@ export default function Leads() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Leads</h1>
-            <p className="text-muted-foreground">Gérez vos contacts et prospects</p>
+            <h1 className="text-3xl font-semibold tracking-tight">Contacts</h1>
+            <p className="text-muted-foreground">{contacts?.length || 0} contacts</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                Nouveau Lead
+                Créer un contact
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Ajouter un Lead</DialogTitle>
+                <DialogTitle>Nouveau contact</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
@@ -291,7 +369,7 @@ export default function Leads() {
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="email@example.com" {...field} />
+                            <Input placeholder="email@exemple.com" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -339,7 +417,7 @@ export default function Leads() {
                       name="urgency_score"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Score urgence (0-10)</FormLabel>
+                          <FormLabel>Score (0-10)</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -374,7 +452,7 @@ export default function Leads() {
                       <FormItem>
                         <FormLabel>Notes</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Informations complémentaires..." {...field} />
+                          <Textarea placeholder="Notes..." {...field} rows={3} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -382,7 +460,7 @@ export default function Leads() {
                   />
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer le lead
+                    Créer le contact
                   </Button>
                 </form>
               </Form>
@@ -391,17 +469,17 @@ export default function Leads() {
         </div>
 
         {/* Search */}
-        <div className="relative max-w-md">
+        <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Rechercher un lead..."
+            placeholder="Rechercher..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
 
-        {/* Kanban View */}
+        {/* Views */}
         <Tabs defaultValue="kanban">
           <TabsList>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
@@ -412,32 +490,36 @@ export default function Leads() {
             {isLoading ? (
               <div className="flex gap-4 overflow-x-auto pb-4">
                 {PIPELINE_STAGES.map((stage) => (
-                  <div key={stage} className="flex-1 min-w-[280px] max-w-[320px]">
+                  <div key={stage} className="flex-shrink-0 w-72">
                     <Skeleton className="h-[400px] w-full" />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex gap-4 overflow-x-auto pb-4">
-                {PIPELINE_STAGES.map((stage) => (
-                  <KanbanColumn
-                    key={stage}
-                    stage={stage}
-                    contacts={contactsByStage[stage]}
-                    onDrop={(newStage) => {
-                      if (draggedContact) {
-                        updateStageMutation.mutate({ id: draggedContact.id, stage: newStage });
-                        setDraggedContact(null);
-                      }
-                    }}
-                  />
-                ))}
-              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="flex gap-4 overflow-x-auto pb-4">
+                  {PIPELINE_STAGES.map((stage) => (
+                    <KanbanColumn
+                      key={stage}
+                      stage={stage}
+                      contacts={contactsByStage[stage]}
+                    />
+                  ))}
+                </div>
+                <DragOverlay>
+                  {activeContact ? <ContactCard contact={activeContact} isDragging /> : null}
+                </DragOverlay>
+              </DndContext>
             )}
           </TabsContent>
 
           <TabsContent value="list" className="mt-4">
-            <Card className="glass border-border/50">
+            <Card className="glass">
               <CardContent className="p-0">
                 {isLoading ? (
                   <div className="p-4 space-y-2">
@@ -447,20 +529,20 @@ export default function Leads() {
                   </div>
                 ) : filteredContacts?.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
-                    <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Aucun lead trouvé</p>
+                    <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">Aucun contact trouvé</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-border">
+                  <div className="divide-y divide-white/5">
                     {filteredContacts?.map((contact) => (
-                      <div key={contact.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div key={contact.id} className="p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                             <User className="w-5 h-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">{contact.full_name}</p>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <p className="font-medium text-sm">{contact.full_name}</p>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
                               {contact.email && (
                                 <span className="flex items-center gap-1">
                                   <Mail className="w-3 h-3" />
@@ -477,11 +559,17 @@ export default function Leads() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{contact.pipeline_stage}</Badge>
-                          {contact.role && <Badge variant="secondary">{contact.role}</Badge>}
-                          <Button size="sm" variant="ghost">
-                            <MessageSquare className="w-4 h-4" />
-                          </Button>
+                          {contact.role && (
+                            <Badge variant="outline" className="text-xs">{contact.role}</Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            {PIPELINE_STAGE_LABELS[contact.pipeline_stage as PipelineStage]}
+                          </Badge>
+                          {contact.last_contact_date && (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {formatRelativeDate(contact.last_contact_date)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
