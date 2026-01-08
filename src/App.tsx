@@ -6,13 +6,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { CommandMenu } from "@/components/CommandMenu";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
 // Lazy load pages for code splitting
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Leads = lazy(() => import("./pages/Leads"));
+const Contacts = lazy(() => import("./pages/Contacts"));
 const Properties = lazy(() => import("./pages/Properties"));
 const Deals = lazy(() => import("./pages/Deals"));
 const Activities = lazy(() => import("./pages/Activities"));
@@ -64,8 +65,12 @@ function AppRoutes() {
       <Route path="/dashboard" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
       } />
+      <Route path="/contacts" element={
+        <ProtectedRoute><Contacts /></ProtectedRoute>
+      } />
+      {/* Keep /leads as alias for backwards compatibility */}
       <Route path="/leads" element={
-        <ProtectedRoute><Leads /></ProtectedRoute>
+        <ProtectedRoute><Contacts /></ProtectedRoute>
       } />
       <Route path="/properties" element={
         <ProtectedRoute><Properties /></ProtectedRoute>
@@ -90,21 +95,23 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner position="top-right" />
-        <BrowserRouter>
-          <Suspense fallback={<PageLoader />}>
-            <AppRoutes />
-          </Suspense>
-          {/* Global Command Menu - only visible when authenticated */}
-          <CommandMenu />
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner position="top-right" />
+          <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
+              <AppRoutes />
+            </Suspense>
+            {/* Global Command Menu - only visible when authenticated */}
+            <CommandMenu />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  organizationId: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, orgName: string) => Promise<{ error: Error | null }>;
@@ -16,7 +17,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Fetch organization ID when user changes
+  useEffect(() => {
+    async function fetchOrganizationId() {
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+        
+        if (data && !error) {
+          setOrganizationId(data.organization_id);
+        } else {
+          console.error('Failed to fetch organization:', error);
+          setOrganizationId(null);
+        }
+      } else {
+        setOrganizationId(null);
+      }
+    }
+    
+    fetchOrganizationId();
+  }, [user]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -114,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, organizationId, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
