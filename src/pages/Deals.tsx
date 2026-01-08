@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Calendar, Loader2 } from 'lucide-react';
+import { Plus, Calendar, Loader2, Kanban } from 'lucide-react';
 import { useProfile } from '@/hooks/useOrganization';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -196,40 +196,17 @@ export default function Deals() {
     },
   });
 
-  const { data: deals, isLoading } = useQuery({
-    queryKey: ['deals'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('deals')
-        .select('*, contacts:contact_id(full_name)')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Deal[];
-    },
+  // Use organization-aware query
+  const { data: deals, isLoading } = useOrgQuery<Deal[]>('deals', {
+    select: '*, contacts:contact_id(full_name)',
+    orderBy: { column: 'created_at', ascending: false }
   });
 
-  // Subscribe to realtime updates
-  const { data: realtimeDeals } = useQuery({
-    queryKey: ['deals-realtime'],
-    queryFn: async () => {
-      const channel = supabase
-        .channel('deals-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
-          queryClient.invalidateQueries({ queryKey: ['deals'] });
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    },
-    staleTime: Infinity,
-  });
+  const organizationId = useOrganizationId();
 
   const createMutation = useMutation({
     mutationFn: async (values: DealFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
+      if (!organizationId) throw new Error('Organisation non trouvée');
       
       const { error } = await supabase
         .from('deals')
@@ -239,7 +216,7 @@ export default function Deals() {
           commission_rate: values.commission_rate,
           probability: values.probability,
           expected_close_date: values.expected_close_date || null,
-          organization_id: profile.organization_id,
+          organization_id: organizationId,
           stage: 'nouveau',
         });
 
