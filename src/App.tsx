@@ -2,16 +2,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { CommandMenu } from "@/components/CommandMenu";
 import { lazy, Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2 } from "lucide-react";
 
 // Lazy load pages for code splitting
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
+const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Leads = lazy(() => import("./pages/Leads"));
 const Properties = lazy(() => import("./pages/Properties"));
@@ -33,12 +32,60 @@ const queryClient = new QueryClient({
 function PageLoader() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="space-y-4 w-full max-w-md px-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-3/4" />
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Chargement...</p>
       </div>
     </div>
+  );
+}
+
+// Root redirect component
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return <PageLoader />;
+  }
+  
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Root redirect based on auth state */}
+      <Route path="/" element={<RootRedirect />} />
+      
+      {/* Public route */}
+      <Route path="/login" element={<Login />} />
+      
+      {/* Protected routes - all wrapped with DashboardLayout via ProtectedRoute */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute><Dashboard /></ProtectedRoute>
+      } />
+      <Route path="/leads" element={
+        <ProtectedRoute><Leads /></ProtectedRoute>
+      } />
+      <Route path="/properties" element={
+        <ProtectedRoute><Properties /></ProtectedRoute>
+      } />
+      <Route path="/deals" element={
+        <ProtectedRoute><Deals /></ProtectedRoute>
+      } />
+      <Route path="/activities" element={
+        <ProtectedRoute><Activities /></ProtectedRoute>
+      } />
+      <Route path="/stats" element={
+        <ProtectedRoute><Stats /></ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute><Settings /></ProtectedRoute>
+      } />
+      
+      {/* Catch-all */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 
@@ -50,39 +97,9 @@ const App = () => (
         <Sonner position="top-right" />
         <BrowserRouter>
           <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              
-              {/* Protected routes */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute><Dashboard /></ProtectedRoute>
-              } />
-              <Route path="/leads" element={
-                <ProtectedRoute><Leads /></ProtectedRoute>
-              } />
-              <Route path="/properties" element={
-                <ProtectedRoute><Properties /></ProtectedRoute>
-              } />
-              <Route path="/deals" element={
-                <ProtectedRoute><Deals /></ProtectedRoute>
-              } />
-              <Route path="/activities" element={
-                <ProtectedRoute><Activities /></ProtectedRoute>
-              } />
-              <Route path="/stats" element={
-                <ProtectedRoute><Stats /></ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute><Settings /></ProtectedRoute>
-              } />
-              
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppRoutes />
           </Suspense>
-          {/* Global Command Menu */}
+          {/* Global Command Menu - only visible when authenticated */}
           <CommandMenu />
         </BrowserRouter>
       </TooltipProvider>
