@@ -26,13 +26,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { name: 'Cockpit', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Leads', href: '/leads', icon: Users },
+  { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Contacts', href: '/leads', icon: Users },
   { name: 'Biens', href: '/properties', icon: Home },
-  { name: 'Deals', href: '/deals', icon: TrendingUp },
+  { name: 'Pipeline', href: '/deals', icon: TrendingUp },
   { name: 'Activités', href: '/activities', icon: CheckSquare },
   { name: 'Statistiques', href: '/stats', icon: BarChart3 },
-  { name: 'Réglages', href: '/settings', icon: Settings },
+  { name: 'Paramètres', href: '/settings', icon: Settings },
 ];
 
 export function AppSidebar() {
