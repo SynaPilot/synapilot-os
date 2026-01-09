@@ -20,7 +20,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Calendar, Loader2, Kanban } from 'lucide-react';
-import { useOrgQuery, useOrganizationId } from '@/hooks/useOrgQuery';
+import { useOrgQuery } from '@/hooks/useOrgQuery';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -195,13 +196,16 @@ export default function Deals() {
     },
   });
 
-  // Use organization-aware query
-  const { data: deals, isLoading } = useOrgQuery<Deal[]>('deals', {
+  const { organizationId } = useAuth();
+
+  // Query options for cache key consistency
+  const queryOptions = {
     select: '*, contacts:contact_id(full_name)',
     orderBy: { column: 'created_at', ascending: false }
-  });
+  };
 
-  const organizationId = useOrganizationId();
+  // Use organization-aware query
+  const { data: deals, isLoading } = useOrgQuery<Deal[]>('deals', queryOptions);
 
   const createMutation = useMutation({
     mutationFn: async (values: DealFormValues) => {
@@ -222,7 +226,8 @@ export default function Deals() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      // Invalidate with exact key used by useOrgQuery
+      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
       setIsDialogOpen(false);
       form.reset();
       toast.success('Opportunité créée avec succès');
@@ -234,32 +239,36 @@ export default function Deals() {
 
   const updateStageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: DealStage }) => {
+      if (!organizationId) throw new Error('Organisation non trouvée');
+      
       const probability = stage === 'vendu' ? 100 : stage === 'perdu' ? 0 : undefined;
       
       const { error } = await supabase
         .from('deals')
         .update({ stage, ...(probability !== undefined && { probability }) })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('organization_id', organizationId);
 
       if (error) throw error;
     },
     onMutate: async ({ id, stage }) => {
-      // Optimistic update
-      await queryClient.cancelQueries({ queryKey: ['deals'] });
-      const previousDeals = queryClient.getQueryData<Deal[]>(['deals']);
+      // Optimistic update with exact query key
+      const queryKey = ['deals', organizationId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousDeals = queryClient.getQueryData<Deal[]>(queryKey);
       
-      queryClient.setQueryData<Deal[]>(['deals'], (old) =>
+      queryClient.setQueryData<Deal[]>(queryKey, (old) =>
         old?.map((deal) => (deal.id === id ? { ...deal, stage } : deal))
       );
       
       return { previousDeals };
     },
     onError: (error, _, context) => {
-      queryClient.setQueryData(['deals'], context?.previousDeals);
+      queryClient.setQueryData(['deals', organizationId], context?.previousDeals);
       toast.error('Erreur lors de la mise à jour');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
     },
   });
 
