@@ -198,6 +198,9 @@ export default function Deals() {
 
   const { organizationId } = useAuth();
 
+  // Safe query key that works even when organizationId is null
+  const dealsQueryKey = organizationId ? (['deals', organizationId] as const) : (['deals'] as const);
+
   // Query options for cache key consistency
   const queryOptions = {
     select: '*, contacts:contact_id(full_name)',
@@ -226,8 +229,7 @@ export default function Deals() {
       if (error) throw error;
     },
     onSuccess: () => {
-      // Invalidate with exact key used by useOrgQuery
-      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
+      queryClient.invalidateQueries({ queryKey: dealsQueryKey });
       setIsDialogOpen(false);
       form.reset();
       toast.success('Opportunité créée avec succès');
@@ -241,19 +243,22 @@ export default function Deals() {
     mutationFn: async ({ id, stage }: { id: string; stage: DealStage }) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
       
-      const probability = stage === 'vendu' ? 100 : stage === 'perdu' ? 0 : undefined;
+      const updates: { stage: DealStage; probability?: number } = { stage };
+      if (stage === 'vendu') updates.probability = 100;
+      else if (stage === 'perdu') updates.probability = 0;
       
       const { error } = await supabase
         .from('deals')
-        .update({ stage, ...(probability !== undefined && { probability }) })
+        .update(updates)
         .eq('id', id)
         .eq('organization_id', organizationId);
 
       if (error) throw error;
     },
     onMutate: async ({ id, stage }) => {
-      // Optimistic update with exact query key
-      const queryKey = ['deals', organizationId];
+      if (!organizationId) return;
+      
+      const queryKey = ['deals', organizationId] as const;
       await queryClient.cancelQueries({ queryKey });
       const previousDeals = queryClient.getQueryData<Deal[]>(queryKey);
       
@@ -263,12 +268,12 @@ export default function Deals() {
       
       return { previousDeals };
     },
-    onError: (error, _, context) => {
-      queryClient.setQueryData(['deals', organizationId], context?.previousDeals);
+    onError: (_, __, context) => {
+      queryClient.setQueryData(dealsQueryKey, context?.previousDeals);
       toast.error('Erreur lors de la mise à jour');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
+      queryClient.invalidateQueries({ queryKey: dealsQueryKey });
     },
   });
 
