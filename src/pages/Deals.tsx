@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Calendar, Loader2, Kanban } from 'lucide-react';
-import { useProfile } from '@/hooks/useOrganization';
+import { useOrgQuery, useOrganizationId } from '@/hooks/useOrgQuery';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -174,7 +174,6 @@ export default function Deals() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const queryClient = useQueryClient();
-  const { data: profile } = useProfile();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
