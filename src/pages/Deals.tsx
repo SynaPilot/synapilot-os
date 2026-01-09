@@ -258,11 +258,10 @@ export default function Deals() {
     onMutate: async ({ id, stage }) => {
       if (!organizationId) return;
       
-      const queryKey = ['deals', organizationId] as const;
-      await queryClient.cancelQueries({ queryKey });
-      const previousDeals = queryClient.getQueryData<Deal[]>(queryKey);
+      await queryClient.cancelQueries({ queryKey: dealsQueryKey });
+      const previousDeals = queryClient.getQueryData<Deal[]>(dealsQueryKey);
       
-      queryClient.setQueryData<Deal[]>(queryKey, (old) =>
+      queryClient.setQueryData<Deal[]>(dealsQueryKey, (old) =>
         old?.map((deal) => (deal.id === id ? { ...deal, stage } : deal))
       );
       
