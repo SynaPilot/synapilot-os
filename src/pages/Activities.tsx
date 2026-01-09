@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ActivityItemSkeleton } from '@/components/skeletons';
 import {
   Dialog,
   DialogContent,
@@ -37,10 +37,11 @@ import {
   Loader2,
   CheckCircle2
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { useProfile } from '@/hooks/useOrganization';
+import { useOrgQuery } from '@/hooks/useOrgQuery';
+import { useAuth } from '@/contexts/AuthContext';
+import { motion } from 'framer-motion';
 import { ACTIVITY_TYPES, ACTIVITY_STATUSES } from '@/lib/constants';
+import { formatRelativeTime } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Activity = Tables<'activities'> & {
@@ -55,6 +56,11 @@ const activitySchema = z.object({
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
+
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+};
 
 function getActivityIcon(type: string) {
   const icons: Record<string, React.ElementType> = {
@@ -78,14 +84,28 @@ function getStatusColor(status: string) {
   return colors[status] || 'bg-muted text-muted-foreground';
 }
 
-function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete: () => void }) {
+function ActivityItem({ 
+  activity, 
+  onComplete,
+  index 
+}: { 
+  activity: Activity; 
+  onComplete: () => void;
+  index: number;
+}) {
   const Icon = getActivityIcon(activity.type);
   const isCompleted = activity.status === 'Terminé';
 
   return (
-    <div className={`flex items-start gap-4 p-4 rounded-lg transition-colors ${
-      isCompleted ? 'bg-secondary/30' : 'bg-card hover:bg-secondary/50'
-    }`}>
+    <motion.div
+      className={`flex items-start gap-4 p-4 rounded-lg transition-colors ${
+        isCompleted ? 'bg-secondary/30' : 'bg-card hover:bg-secondary/50'
+      }`}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2, delay: index * 0.03 }}
+      whileHover={{ scale: 1.005 }}
+    >
       <div className={`p-2 rounded-lg ${isCompleted ? 'bg-success/10' : 'bg-primary/10'}`}>
         <Icon className={`w-4 h-4 ${isCompleted ? 'text-success' : 'text-primary'}`} />
       </div>
@@ -113,7 +133,7 @@ function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete
             </span>
           )}
           {activity.date && (
-            <span>{formatDistanceToNow(new Date(activity.date), { addSuffix: true, locale: fr })}</span>
+            <span>{formatRelativeTime(activity.date)}</span>
           )}
         </div>
       </div>
@@ -123,7 +143,7 @@ function ActivityItem({ activity, onComplete }: { activity: Activity; onComplete
           <CheckCircle2 className="w-4 h-4" />
         </Button>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -131,7 +151,11 @@ export default function Activities() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const queryClient = useQueryClient();
-  const { data: profile } = useProfile();
+  const { organizationId } = useAuth();
+
+  const activitiesQueryKey = organizationId 
+    ? (['activities', organizationId] as const) 
+    : (['activities'] as const);
 
   const form = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
@@ -142,26 +166,14 @@ export default function Activities() {
     },
   });
 
-  const { data: activities, isLoading } = useQuery({
-    queryKey: ['activities'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
-        .select(`
-          *,
-          contacts:related_contact_id(full_name),
-          properties:related_property_id(address)
-        `)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      return data as Activity[];
-    },
+  const { data: activities, isLoading } = useOrgQuery<Activity[]>('activities', {
+    select: '*, contacts:related_contact_id(full_name), properties:related_property_id(address)',
+    orderBy: { column: 'date', ascending: false }
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: ActivityFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
+      if (!organizationId) throw new Error('Organisation non trouvée');
       
       const { error } = await supabase
         .from('activities')
@@ -169,15 +181,14 @@ export default function Activities() {
           type: values.type,
           content: values.content || null,
           status: values.status,
-          organization_id: profile.organization_id,
-          created_by: profile.id,
+          organization_id: organizationId,
           date: new Date().toISOString(),
         });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: activitiesQueryKey });
       setIsDialogOpen(false);
       form.reset();
       toast.success('Activité créée');
@@ -189,15 +200,18 @@ export default function Activities() {
 
   const completeMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!organizationId) throw new Error('Organisation non trouvée');
+      
       const { error } = await supabase
         .from('activities')
         .update({ status: 'Terminé' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('organization_id', organizationId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: activitiesQueryKey });
       toast.success('Activité terminée');
     },
   });
@@ -215,7 +229,13 @@ export default function Activities() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <motion.div 
+        className="space-y-6 max-w-7xl mx-auto"
+        initial="initial"
+        animate="animate"
+        variants={pageVariants}
+        transition={{ duration: 0.3 }}
+      >
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -296,7 +316,7 @@ export default function Activities() {
                   />
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer l'activité
+                    {createMutation.isPending ? 'Création...' : 'Créer l\'activité'}
                   </Button>
                 </form>
               </Form>
@@ -318,12 +338,12 @@ export default function Activities() {
         </Select>
 
         {/* Activities List */}
-        <Card className="glass">
+        <Card className="glass border-white/10">
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="p-4 space-y-3">
+              <div className="divide-y divide-white/5">
                 {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-20 w-full" />
+                  <ActivityItemSkeleton key={i} />
                 ))}
               </div>
             ) : filteredActivities?.length === 0 ? (
@@ -337,10 +357,11 @@ export default function Activities() {
               </div>
             ) : (
               <div className="divide-y divide-white/5">
-                {filteredActivities?.map((activity) => (
+                {filteredActivities?.map((activity, index) => (
                   <ActivityItem 
                     key={activity.id} 
                     activity={activity}
+                    index={index}
                     onComplete={() => completeMutation.mutate(activity.id)}
                   />
                 ))}
@@ -348,7 +369,7 @@ export default function Activities() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     </DashboardLayout>
   );
 }

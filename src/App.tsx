@@ -99,8 +99,18 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner position="top-right" />
+      <Toaster />
+      <Sonner 
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: 'rgba(9, 9, 11, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: 'white'
+          },
+          className: 'backdrop-blur-sm'
+        }}
+      />
           <BrowserRouter>
             <Suspense fallback={<PageLoader />}>
               <AppRoutes />
