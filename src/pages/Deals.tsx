@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { KanbanColumnSkeleton } from '@/components/skeletons';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Calendar, Loader2, Kanban } from 'lucide-react';
+import { Plus, Calendar, Loader2 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,7 +36,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DEAL_STAGES, DEAL_STAGE_LABELS, formatCurrency, type DealStage } from '@/lib/constants';
+import { DEAL_STAGES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
+import { formatCurrency, formatShortDate } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'> & {
@@ -53,6 +54,11 @@ const dealSchema = z.object({
 
 type DealFormValues = z.infer<typeof dealSchema>;
 
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+};
+
 function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
   const getProbabilityColor = (probability: number | null) => {
     if (!probability) return 'text-muted-foreground';
@@ -62,7 +68,7 @@ function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
   };
 
   return (
-    <Card className={`glass transition-all ${isDragging ? 'opacity-50 scale-105' : 'hover:border-primary/30'}`}>
+    <Card className={`glass transition-all border-white/10 ${isDragging ? 'opacity-50 scale-105 shadow-2xl' : 'hover:border-primary/30'}`}>
       <CardContent className="p-3">
         <div className="space-y-2">
           <p className="font-medium text-sm truncate">{deal.name}</p>
@@ -74,13 +80,13 @@ function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
               Com: {formatCurrency(deal.commission_amount || 0)}
             </span>
             <span className={getProbabilityColor(deal.probability)}>
-              {deal.probability || 0}%
+              {deal.probability || 0} %
             </span>
           </div>
           {deal.expected_close_date && (
             <p className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
               <Calendar className="w-3 h-3" />
-              {new Date(deal.expected_close_date).toLocaleDateString('fr-FR')}
+              {formatShortDate(deal.expected_close_date)}
             </p>
           )}
         </div>
@@ -142,8 +148,8 @@ function KanbanColumn({
   };
 
   return (
-    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/5`}>
-      <div className="p-3 border-b border-white/5">
+    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10`}>
+      <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-medium text-sm">{DEAL_STAGE_LABELS[stage]}</h3>
           <Badge variant="secondary" className="text-xs font-mono">{deals.length}</Badge>
@@ -325,7 +331,13 @@ export default function Deals() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <motion.div 
+        className="space-y-6"
+        initial="initial"
+        animate="animate"
+        variants={pageVariants}
+        transition={{ duration: 0.3 }}
+      >
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -436,7 +448,7 @@ export default function Deals() {
                   </div>
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer l'opportunité
+                    {createMutation.isPending ? 'Création...' : 'Créer l\'opportunité'}
                   </Button>
                 </form>
               </Form>
@@ -448,9 +460,7 @@ export default function Deals() {
         {isLoading ? (
           <div className="flex gap-4 overflow-x-auto pb-4">
             {DEAL_STAGES.map((stage) => (
-              <div key={stage} className="flex-shrink-0 w-72">
-                <Skeleton className="h-[400px] w-full" />
-              </div>
+              <KanbanColumnSkeleton key={stage} />
             ))}
           </div>
         ) : (
@@ -471,11 +481,19 @@ export default function Deals() {
               ))}
             </div>
             <DragOverlay>
-              {activeDeal ? <DealCard deal={activeDeal} isDragging /> : null}
+              {activeDeal ? (
+                <motion.div
+                  initial={{ scale: 1.05, rotate: 2 }}
+                  animate={{ scale: 1.08, rotate: 3 }}
+                  style={{ cursor: 'grabbing' }}
+                >
+                  <DealCard deal={activeDeal} isDragging />
+                </motion.div>
+              ) : null}
             </DragOverlay>
           </DndContext>
         )}
-      </div>
+      </motion.div>
     </DashboardLayout>
   );
 }

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PropertyCardSkeleton } from '@/components/skeletons';
 import {
   Dialog,
   DialogContent,
@@ -36,8 +36,11 @@ import {
   Loader2,
   Building2
 } from 'lucide-react';
-import { useProfile } from '@/hooks/useOrganization';
-import { PROPERTY_TYPES, PROPERTY_STATUSES, formatCurrency } from '@/lib/constants';
+import { useOrgQuery } from '@/hooks/useOrgQuery';
+import { useAuth } from '@/contexts/AuthContext';
+import { motion } from 'framer-motion';
+import { PROPERTY_TYPES, PROPERTY_STATUSES } from '@/lib/constants';
+import { formatCurrency, formatNumber } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Property = Tables<'properties'>;
@@ -54,7 +57,12 @@ const propertySchema = z.object({
 
 type PropertyFormValues = z.infer<typeof propertySchema>;
 
-function PropertyCard({ property }: { property: Property }) {
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+};
+
+function PropertyCard({ property, index }: { property: Property; index: number }) {
   const getStatusColor = (status: string | null) => {
     const colors: Record<string, string> = {
       'Estimation': 'bg-info/20 text-info border-info/30',
@@ -67,43 +75,50 @@ function PropertyCard({ property }: { property: Property }) {
   };
 
   return (
-    <Card className="glass hover:border-primary/30 transition-all group overflow-hidden">
-      <div className="h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
-        <Home className="w-10 h-10 text-muted-foreground/40" />
-      </div>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <Badge className={`text-xs ${getStatusColor(property.status)}`}>
-            {property.status}
-          </Badge>
-          {property.type && <Badge variant="outline" className="text-xs">{property.type}</Badge>}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+      whileHover={{ scale: 1.02 }}
+    >
+      <Card className="glass border-white/10 hover:border-primary/30 transition-all group overflow-hidden">
+        <div className="h-36 bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
+          <Home className="w-10 h-10 text-muted-foreground/40" />
         </div>
-        <p className="font-medium text-sm line-clamp-2 mb-2">{property.address}</p>
-        <p className="text-lg font-semibold text-primary mb-3">
-          {property.price ? formatCurrency(property.price) : 'Prix non défini'}
-        </p>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
-          {property.surface_m2 && (
-            <span className="flex items-center gap-1">
-              <Square className="w-3 h-3" />
-              {property.surface_m2} m²
-            </span>
-          )}
-          {property.rooms && (
-            <span className="flex items-center gap-1">
-              <Building2 className="w-3 h-3" />
-              {property.rooms}p
-            </span>
-          )}
-          {property.bedrooms && (
-            <span className="flex items-center gap-1">
-              <Bed className="w-3 h-3" />
-              {property.bedrooms}ch
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between mb-2">
+            <Badge className={`text-xs ${getStatusColor(property.status)}`}>
+              {property.status}
+            </Badge>
+            {property.type && <Badge variant="outline" className="text-xs">{property.type}</Badge>}
+          </div>
+          <p className="font-medium text-sm line-clamp-2 mb-2">{property.address}</p>
+          <p className="text-lg font-semibold text-primary mb-3">
+            {property.price ? formatCurrency(property.price) : 'Prix non défini'}
+          </p>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
+            {property.surface_m2 && (
+              <span className="flex items-center gap-1">
+                <Square className="w-3 h-3" />
+                {formatNumber(property.surface_m2)} m²
+              </span>
+            )}
+            {property.rooms && (
+              <span className="flex items-center gap-1">
+                <Building2 className="w-3 h-3" />
+                {property.rooms}p
+              </span>
+            )}
+            {property.bedrooms && (
+              <span className="flex items-center gap-1">
+                <Bed className="w-3 h-3" />
+                {property.bedrooms}ch
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -112,7 +127,11 @@ export default function Properties() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { data: profile } = useProfile();
+  const { organizationId } = useAuth();
+
+  const propertiesQueryKey = organizationId 
+    ? (['properties', organizationId] as const) 
+    : (['properties'] as const);
 
   const form = useForm<PropertyFormValues>({
     resolver: zodResolver(propertySchema),
@@ -127,22 +146,14 @@ export default function Properties() {
     },
   });
 
-  const { data: properties, isLoading } = useQuery({
-    queryKey: ['properties'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Property[];
-    },
+  const { data: properties, isLoading } = useOrgQuery<Property[]>('properties', {
+    select: '*',
+    orderBy: { column: 'created_at', ascending: false }
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: PropertyFormValues) => {
-      if (!profile?.organization_id) throw new Error('Organisation non trouvée');
+      if (!organizationId) throw new Error('Organisation non trouvée');
       
       const { error } = await supabase
         .from('properties')
@@ -154,14 +165,14 @@ export default function Properties() {
           rooms: values.rooms || null,
           bedrooms: values.bedrooms || null,
           description: values.description || null,
-          organization_id: profile.organization_id,
+          organization_id: organizationId,
           status: 'Estimation',
         });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
       setIsDialogOpen(false);
       form.reset();
       toast.success('Bien créé avec succès');
@@ -179,7 +190,13 @@ export default function Properties() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <motion.div 
+        className="space-y-6 max-w-7xl mx-auto"
+        initial="initial"
+        animate="animate"
+        variants={pageVariants}
+        transition={{ duration: 0.3 }}
+      >
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -325,7 +342,7 @@ export default function Properties() {
                   />
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Créer le bien
+                    {createMutation.isPending ? 'Création...' : 'Créer le bien'}
                   </Button>
                 </form>
               </Form>
@@ -361,11 +378,11 @@ export default function Properties() {
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-[280px] w-full" />
+              <PropertyCardSkeleton key={i} />
             ))}
           </div>
         ) : filteredProperties?.length === 0 ? (
-          <Card className="glass">
+          <Card className="glass border-white/10">
             <CardContent className="py-12 text-center">
               <Home className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">Aucun bien trouvé</p>
@@ -377,12 +394,12 @@ export default function Properties() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredProperties?.map((property) => (
-              <PropertyCard key={property.id} property={property} />
+            {filteredProperties?.map((property, index) => (
+              <PropertyCard key={property.id} property={property} index={index} />
             ))}
           </div>
         )}
-      </div>
+      </motion.div>
     </DashboardLayout>
   );
 }

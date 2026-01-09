@@ -2,8 +2,12 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { 
+  KPICardSkeleton, 
+  UrgentLeadsSkeleton, 
+  ActivityFeedSkeleton 
+} from '@/components/skeletons';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { 
   TrendingUp, 
@@ -17,17 +21,20 @@ import {
   Zap,
   Inbox
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { formatCurrency } from '@/lib/constants';
+import { formatCurrency, formatRelativeTime } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'>;
 type Contact = Tables<'contacts'>;
 type Activity = Tables<'activities'> & {
   contacts?: { full_name: string } | null;
+};
+
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
 };
 
 function KPICard({ 
@@ -46,14 +53,7 @@ function KPICard({
   delay?: number;
 }) {
   if (loading) {
-    return (
-      <Card className="glass">
-        <CardContent className="p-6">
-          <Skeleton className="h-4 w-24 mb-3" />
-          <Skeleton className="h-8 w-32" />
-        </CardContent>
-      </Card>
-    );
+    return <KPICardSkeleton />;
   }
 
   return (
@@ -129,7 +129,13 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+      <motion.div 
+        className="space-y-8 max-w-7xl mx-auto"
+        initial="initial"
+        animate="animate"
+        variants={pageVariants}
+        transition={{ duration: 0.3 }}
+      >
         {/* Header */}
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Cockpit</h1>
@@ -194,7 +200,7 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.4 }}
               >
-                <Card className="glass">
+                <Card className="glass border-white/10">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-base">
@@ -211,11 +217,7 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     {contactsLoading ? (
-                      <div className="space-y-3">
-                        {[...Array(3)].map((_, i) => (
-                          <Skeleton key={i} className="h-14 w-full" />
-                        ))}
-                      </div>
+                      <UrgentLeadsSkeleton count={3} />
                     ) : urgentLeads.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -224,9 +226,11 @@ export default function Dashboard() {
                     ) : (
                       <div className="space-y-2">
                         {urgentLeads.map((lead) => (
-                          <div
+                          <motion.div
                             key={lead.id}
                             className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                            whileHover={{ scale: 1.01 }}
+                            transition={{ duration: 0.15 }}
                           >
                             <div>
                               <p className="font-medium text-sm">{lead.full_name}</p>
@@ -242,7 +246,7 @@ export default function Dashboard() {
                                 <Phone className="w-3.5 h-3.5" />
                               </Button>
                             </div>
-                          </div>
+                          </motion.div>
                         ))}
                       </div>
                     )}
@@ -256,7 +260,7 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.5 }}
               >
-                <Card className="glass">
+                <Card className="glass border-white/10">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div>
                       <CardTitle className="text-base">Activité en Direct</CardTitle>
@@ -270,11 +274,7 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     {activitiesLoading ? (
-                      <div className="space-y-3">
-                        {[...Array(5)].map((_, i) => (
-                          <Skeleton key={i} className="h-10 w-full" />
-                        ))}
-                      </div>
+                      <ActivityFeedSkeleton count={5} />
                     ) : !activities?.length ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Calendar className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -282,12 +282,15 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        {activities.map((activity) => {
+                        {activities.map((activity, index) => {
                           const Icon = getActivityIcon(activity.type);
                           return (
-                            <div
+                            <motion.div
                               key={activity.id}
                               className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.2, delay: index * 0.05 }}
                             >
                               <div className="p-1.5 rounded-md bg-primary/10">
                                 <Icon className="w-3.5 h-3.5 text-primary" />
@@ -298,13 +301,13 @@ export default function Dashboard() {
                                 </p>
                                 <p className="text-xs text-muted-foreground font-mono">
                                   {activity.contacts?.full_name && `${activity.contacts.full_name} • `}
-                                  {activity.date && formatDistanceToNow(new Date(activity.date), { addSuffix: true, locale: fr })}
+                                  {activity.date && formatRelativeTime(activity.date)}
                                 </p>
                               </div>
                               <Badge variant="outline" className="text-xs shrink-0">
                                 {activity.status}
                               </Badge>
-                            </div>
+                            </motion.div>
                           );
                         })}
                       </div>
@@ -315,7 +318,7 @@ export default function Dashboard() {
             </div>
           </>
         )}
-      </div>
+      </motion.div>
     </DashboardLayout>
   );
 }
