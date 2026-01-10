@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -158,8 +157,7 @@ export default function Stats() {
   });
 
   return (
-    <DashboardLayout>
-      <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Statistiques</h1>
@@ -308,7 +306,6 @@ export default function Stats() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
