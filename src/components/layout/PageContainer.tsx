@@ -22,7 +22,7 @@ export function PageContainer({
 }: PageContainerProps) {
   return (
     <motion.div
-      className="space-y-6 max-w-7xl mx-auto"
+      className="space-y-6 w-full max-w-full"
       initial="initial"
       animate="animate"
       exit="exit"
