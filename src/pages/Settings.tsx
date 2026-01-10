@@ -1,4 +1,3 @@
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,8 +12,7 @@ export default function Settings() {
   const { data: profile, isLoading: profileLoading } = useProfile();
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Réglages</h1>
           <p className="text-muted-foreground">Gérez votre compte et votre organisation</p>
@@ -106,7 +104,6 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

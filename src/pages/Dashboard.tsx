@@ -1,4 +1,3 @@
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -128,9 +127,8 @@ export default function Dashboard() {
   };
 
   return (
-    <DashboardLayout>
-      <motion.div 
-        className="space-y-8 max-w-7xl mx-auto"
+    <motion.div 
+      className="space-y-8"
         initial="initial"
         animate="animate"
         variants={pageVariants}
@@ -318,7 +316,6 @@ export default function Dashboard() {
             </div>
           </>
         )}
-      </motion.div>
-    </DashboardLayout>
+    </motion.div>
   );
 }

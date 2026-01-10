@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -228,14 +227,13 @@ export default function Activities() {
   }).length || 0;
 
   return (
-    <DashboardLayout>
-      <motion.div 
-        className="space-y-6 max-w-7xl mx-auto"
-        initial="initial"
-        animate="animate"
-        variants={pageVariants}
-        transition={{ duration: 0.3 }}
-      >
+    <motion.div 
+      className="space-y-6"
+      initial="initial"
+      animate="animate"
+      variants={pageVariants}
+      transition={{ duration: 0.3 }}
+    >
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -369,7 +367,6 @@ export default function Activities() {
             )}
           </CardContent>
         </Card>
-      </motion.div>
-    </DashboardLayout>
+    </motion.div>
   );
 }
