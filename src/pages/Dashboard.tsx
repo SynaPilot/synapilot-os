@@ -103,6 +103,13 @@ export default function Dashboard() {
     refetchInterval: 30000 // Auto-refresh every 30s
   });
 
+  // Fetch stagnant deals (no activity in 7+ days)
+  const { data: stagnantDeals, isLoading: stagnantLoading } = useOrgQuery<Deal[]>('deals', {
+    select: 'id, name, amount, stage, updated_at',
+    orderBy: { column: 'updated_at', ascending: true },
+    limit: 5
+  });
+
   // Calculate KPIs from fetched data
   const revenue = deals?.filter(d => d.stage === 'vendu').reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
   const activeDeals = deals?.filter(d => d.stage !== 'vendu' && d.stage !== 'perdu').length || 0;
@@ -190,6 +197,76 @@ export default function Dashboard() {
                 delay={0.3}
               />
             </div>
+
+            {/* Stagnant Deals Widget */}
+            {(() => {
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              const filteredStagnant = stagnantDeals?.filter(d => 
+                d.stage !== 'vendu' && 
+                d.stage !== 'perdu' && 
+                d.updated_at && 
+                new Date(d.updated_at) < sevenDaysAgo
+              ) || [];
+
+              return filteredStagnant.length > 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.35 }}
+                >
+                  <Card className="glass border-orange-500/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <AlertTriangle className="w-4 h-4 text-orange-500" />
+                        Deals Stagnants
+                      </CardTitle>
+                      <CardDescription>
+                        Aucune activité depuis 7+ jours
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {filteredStagnant.slice(0, 5).map((deal) => {
+                          const daysSinceUpdate = Math.floor(
+                            (new Date().getTime() - new Date(deal.updated_at!).getTime()) / (1000 * 60 * 60 * 24)
+                          );
+                          
+                          return (
+                            <motion.div 
+                              key={deal.id}
+                              className="flex items-center justify-between p-3 rounded-lg border border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-colors cursor-pointer"
+                              whileHover={{ scale: 1.01 }}
+                              onClick={() => navigate('/deals')}
+                            >
+                            <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{deal.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatCurrency(deal.amount || 0)}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {deal.stage}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0 ml-3">
+                                <p className="text-sm font-semibold text-orange-500">
+                                  {daysSinceUpdate}j
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  inactif
+                                </p>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ) : null;
+            })()}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Urgent Leads */}
