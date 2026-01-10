@@ -148,15 +148,14 @@ function KanbanColumn({
   };
 
   return (
-    <div className={`flex-shrink-0 w-64 min-w-[16rem] rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10`}>
+    <div className={`flex-shrink-0 w-64 min-w-[16rem] rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10 flex flex-col`}>
       <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-medium text-sm">{DEAL_STAGE_LABELS[stage]}</h3>
           <Badge variant="secondary" className="text-xs font-mono">{deals.length}</Badge>
         </div>
-        <p className="text-xs text-muted-foreground font-mono">{formatCurrency(totalAmount)}</p>
       </div>
-      <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-350px)] overflow-y-auto">
+      <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto flex-1">
         <SortableContext items={deals.map(d => d.id)} strategy={verticalListSortingStrategy}>
           <AnimatePresence mode="popLayout">
             {deals.map((deal) => (
@@ -172,6 +171,15 @@ function KanbanColumn({
             ))}
           </AnimatePresence>
         </SortableContext>
+      </div>
+      {/* Column Total */}
+      <div className="mt-auto pt-3 pb-3 border-t border-white/10">
+        <div className="flex items-center justify-between px-3">
+          <span className="text-sm text-muted-foreground font-medium">Total</span>
+          <span className="text-base font-semibold font-mono">
+            {formatCurrency(totalAmount)}
+          </span>
+        </div>
       </div>
     </div>
   );
