@@ -19,7 +19,8 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Calendar, Loader2 } from 'lucide-react';
+import { Plus, Calendar, Loader2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -329,6 +330,39 @@ export default function Deals() {
     }
   };
 
+  const exportToExcel = () => {
+    if (!deals || deals.length === 0) {
+      toast.error('Aucune donnée', {
+        description: 'Il n\'y a aucun deal à exporter'
+      });
+      return;
+    }
+
+    // Transform deals data for Excel
+    const excelData = deals.map(deal => ({
+      'Titre': deal.name,
+      'Montant (€)': deal.amount,
+      'Statut': DEAL_STAGE_LABELS[deal.stage as DealStage] || deal.stage,
+      'Probabilité (%)': deal.probability || 0,
+      'Commission (€)': deal.commission_amount || 0,
+      'Date de clôture': deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('fr-FR') : '',
+      'Créé le': new Date(deal.created_at).toLocaleDateString('fr-FR')
+    }));
+
+    // Create workbook
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Deals');
+
+    // Download file
+    const fileName = `deals_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast.success('Export réussi', {
+      description: `${deals.length} deals exportés`
+    });
+  };
+
   return (
     <DashboardLayout>
       <motion.div 
@@ -346,7 +380,12 @@ export default function Deals() {
               Pondéré: <span className="text-primary font-medium font-mono">{formatCurrency(totalPipeline)}</span>
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex items-center gap-2">
+            <Button onClick={exportToExcel} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Exporter Excel
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -454,6 +493,7 @@ export default function Deals() {
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Kanban Board */}
