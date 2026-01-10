@@ -148,7 +148,7 @@ function KanbanColumn({
   };
 
   return (
-    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10`}>
+    <div className={`flex-shrink-0 w-64 min-w-[16rem] rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10`}>
       <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-medium text-sm">{DEAL_STAGE_LABELS[stage]}</h3>
@@ -496,7 +496,7 @@ export default function Deals() {
 
         {/* Kanban Board */}
         {isLoading ? (
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6">
             {DEAL_STAGES.map((stage) => (
               <KanbanColumnSkeleton key={stage} />
             ))}
@@ -508,7 +508,7 @@ export default function Deals() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 overflow-x-auto pb-4">
+            <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6">
               {DEAL_STAGES.map((stage) => (
                 <KanbanColumn
                   key={stage}
