@@ -38,6 +38,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { DEAL_STAGES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
 import { formatCurrency, formatShortDate } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'> & {
@@ -68,30 +69,40 @@ function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
   };
 
   return (
-    <Card className={`glass transition-all border-white/10 ${isDragging ? 'opacity-50 scale-105 shadow-2xl' : 'hover:border-primary/30'}`}>
-      <CardContent className="p-3">
-        <div className="space-y-2">
-          <p className="font-medium text-sm truncate">{deal.name}</p>
-          <p className="text-lg font-semibold text-primary">
-            {formatCurrency(deal.amount)}
-          </p>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground font-mono">
-              Com: {formatCurrency(deal.commission_amount || 0)}
-            </span>
-            <span className={getProbabilityColor(deal.probability)}>
-              {deal.probability || 0} %
-            </span>
-          </div>
-          {deal.expected_close_date && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
-              <Calendar className="w-3 h-3" />
-              {formatShortDate(deal.expected_close_date)}
+    <motion.div
+      whileHover={!isDragging ? { scale: 1.02, y: -2 } : undefined}
+      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+    >
+      <Card className={cn(
+        'border-border transition-all duration-200',
+        isDragging 
+          ? 'opacity-60 scale-105 shadow-glow rotate-2 border-primary/40' 
+          : 'hover:border-primary/30 hover:shadow-card-hover'
+      )}>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <p className="font-medium text-sm truncate">{deal.name}</p>
+            <p className="text-xl font-display font-semibold text-primary">
+              {formatCurrency(deal.amount)}
             </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            <div className="flex items-center justify-between text-caption">
+              <span className="text-muted-foreground font-mono">
+                Com: {formatCurrency(deal.commission_amount || 0)}
+              </span>
+              <span className={cn("font-medium", getProbabilityColor(deal.probability))}>
+                {deal.probability || 0} %
+              </span>
+            </div>
+            {deal.expected_close_date && (
+              <p className="text-caption text-muted-foreground flex items-center gap-1.5 font-mono">
+                <Calendar className="w-3 h-3" />
+                {formatShortDate(deal.expected_close_date)}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -526,12 +537,16 @@ export default function Deals() {
                 />
               ))}
             </div>
-            <DragOverlay>
+            <DragOverlay dropAnimation={{
+              duration: 200,
+              easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+            }}>
               {activeDeal ? (
                 <motion.div
-                  initial={{ scale: 1.05, rotate: 2 }}
-                  animate={{ scale: 1.08, rotate: 3 }}
-                  style={{ cursor: 'grabbing' }}
+                  initial={{ scale: 1, rotate: 0 }}
+                  animate={{ scale: 1.08, rotate: -3 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="shadow-glow"
                 >
                   <DealCard deal={activeDeal} isDragging />
                 </motion.div>

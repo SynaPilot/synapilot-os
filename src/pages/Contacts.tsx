@@ -32,6 +32,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { PIPELINE_STAGES, PIPELINE_STAGE_LABELS, CONTACT_ROLES, type PipelineStage } from '@/lib/constants';
 import { formatRelativeTime } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Contact = Tables<'contacts'>;
@@ -53,28 +54,38 @@ const pageVariants = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y:
 function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: boolean }) {
   const getScoreColor = (score: number | null) => {
     if (!score) return 'bg-muted text-muted-foreground';
-    if (score >= 8) return 'bg-destructive/20 text-destructive border-destructive/30';
+    if (score >= 8) return 'bg-error/20 text-error border-error/30';
     if (score >= 5) return 'bg-warning/20 text-warning border-warning/30';
     return 'bg-muted text-muted-foreground';
   };
 
   return (
-    <Card className={`glass border-white/10 transition-all ${isDragging ? 'opacity-50 scale-105 shadow-2xl' : 'hover:border-primary/30'}`}>
-      <CardContent className="p-3">
-        <div className="space-y-2">
-          <p className="font-medium text-sm truncate">{contact.full_name}</p>
-          {contact.phone && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
-              <Phone className="w-3 h-3" />{contact.phone}
-            </p>
-          )}
-          <div className="flex items-center gap-2">
-            {contact.role && <Badge variant="outline" className="text-xs">{contact.role}</Badge>}
-            <Badge className={`text-xs ${getScoreColor(contact.urgency_score)}`}>{contact.urgency_score || 0}/10</Badge>
+    <motion.div
+      whileHover={!isDragging ? { scale: 1.02, y: -2 } : undefined}
+      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+    >
+      <Card className={cn(
+        'border-border transition-all duration-200',
+        isDragging 
+          ? 'opacity-60 scale-105 shadow-glow rotate-2 border-primary/40' 
+          : 'hover:border-primary/30 hover:shadow-card-hover'
+      )}>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <p className="font-medium text-sm truncate">{contact.full_name}</p>
+            {contact.phone && (
+              <p className="text-caption text-muted-foreground flex items-center gap-1.5 font-mono">
+                <Phone className="w-3 h-3 stroke-2" />{contact.phone}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              {contact.role && <Badge variant="outline" className="text-caption">{contact.role}</Badge>}
+              <Badge className={cn("text-caption", getScoreColor(contact.urgency_score))}>{contact.urgency_score || 0}/10</Badge>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -286,9 +297,17 @@ export default function Contacts() {
                 <div className="flex gap-4 overflow-x-auto pb-4">
                   {PIPELINE_STAGES.map((stage) => (<KanbanColumn key={stage} stage={stage} contacts={contactsByStage[stage]} />))}
                 </div>
-                <DragOverlay>
+                <DragOverlay dropAnimation={{
+                  duration: 200,
+                  easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                }}>
                   {activeContact ? (
-                    <motion.div initial={{ scale: 1.05, rotate: 2 }} animate={{ scale: 1.08, rotate: 3 }} style={{ cursor: 'grabbing' }}>
+                    <motion.div 
+                      initial={{ scale: 1, rotate: 0 }} 
+                      animate={{ scale: 1.08, rotate: -3 }} 
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className="shadow-glow"
+                    >
                       <ContactCard contact={activeContact} isDragging />
                     </motion.div>
                   ) : null}
