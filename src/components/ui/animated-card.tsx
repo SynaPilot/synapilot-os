@@ -13,7 +13,7 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
   ({ clickable = false, className, children, ...props }, ref) => {
     if (!clickable) {
       return (
-        <Card ref={ref} className={className}>
+        <Card ref={ref} className={cn("card-hover", className)}>
           {children}
         </Card>
       );
@@ -23,14 +23,16 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
       <motion.div
         ref={ref}
         className={cn(
-          'rounded-lg border bg-card text-card-foreground shadow-sm',
-          'glass cursor-pointer',
+          'rounded-2xl border border-border bg-card text-card-foreground shadow-card',
+          'cursor-pointer transition-all duration-300 ease-premium',
           className
         )}
         whileHover={{ 
           scale: 1.02, 
-          borderColor: 'rgba(255, 255, 255, 0.2)',
-          transition: { duration: 0.15 }
+          y: -2,
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px rgba(20, 184, 166, 0.15)',
+          transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
         }}
         whileTap={{ 
           scale: 0.98,

@@ -41,22 +41,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-border bg-sidebar">
-      <SidebarHeader className="p-4 border-b border-border">
-        <Link to="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-primary-foreground" />
+      <SidebarHeader className="p-5 border-b border-border">
+        <Link to="/dashboard" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:shadow-glow-sm transition-all duration-300">
+            <Building2 className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="font-display font-bold text-lg text-foreground">SynaPilot</h1>
-            <p className="text-xs text-muted-foreground">Agency OS</p>
+            <h1 className="font-display font-bold text-lg text-gradient">SynaPilot</h1>
+            <p className="text-caption text-muted-foreground">Agency OS</p>
           </div>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="p-2">
+      <SidebarContent className="p-3">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {navigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
@@ -65,14 +65,14 @@ export function AppSidebar() {
                       <Link
                         to={item.href}
                         className={cn(
-                          'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                          'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ease-premium',
                           isActive
-                            ? 'bg-primary/10 text-primary border border-primary/20'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                            ? 'bg-primary/10 text-primary border border-primary/20 shadow-glow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-background-hover'
                         )}
                       >
-                        <item.icon className={cn('w-5 h-5', isActive && 'text-primary')} />
-                        <span className="font-medium">{item.name}</span>
+                        <item.icon className={cn('w-5 h-5 stroke-2', isActive && 'text-primary')} />
+                        <span className="font-medium text-sm">{item.name}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -86,11 +86,11 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-border">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-error hover:bg-error/10 rounded-xl"
           onClick={() => signOut()}
         >
-          <LogOut className="w-5 h-5" />
-          Déconnexion
+          <LogOut className="w-5 h-5 stroke-2" />
+          <span className="text-sm">Déconnexion</span>
         </Button>
       </SidebarFooter>
     </Sidebar>
