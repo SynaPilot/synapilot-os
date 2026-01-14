@@ -4,6 +4,12 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600&display=swap');
 
+/* ===== SMOOTH SCROLL & GLOBAL BEHAVIORS ===== */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
 @layer base {
   :root {
     /* Premium Dark Mode Palette */
@@ -287,4 +293,73 @@
 input:focus, textarea:focus, select:focus {
   border-color: hsl(var(--primary)) !important;
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+/* ===== CUSTOM CURSORS ===== */
+.draggable {
+  cursor: grab;
+}
+
+.draggable:active {
+  cursor: grabbing;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.link-cursor {
+  cursor: alias;
+}
+
+.loading-cursor {
+  cursor: wait;
+}
+
+.resize-cursor {
+  cursor: ew-resize;
+}
+
+/* ===== ENHANCED FOCUS STATES (A11Y) ===== */
+*:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* ===== SELECTION STYLES ===== */
+::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
+}
+
+/* ===== REDUCED MOTION ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
 }
