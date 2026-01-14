@@ -42,16 +42,12 @@ export const PROPERTY_TYPES = ['Appartement', 'Maison', 'Terrain', 'Commerce', '
 export type PropertyType = typeof PROPERTY_TYPES[number];
 
 // Activity types (must match database enum exactly)
-export const ACTIVITY_TYPES = ['Appel', 'Email', 'Visite', 'Relance', 'RDV', 'Administratif', 'Paiement'] as const;
+export const ACTIVITY_TYPES = ['Call', 'SMS', 'Email', 'Meeting', 'Visite', 'Relance'] as const;
 export type ActivityType = typeof ACTIVITY_TYPES[number];
 
 // Activity statuses (must match database enum exactly)
-export const ACTIVITY_STATUSES = ['À faire', 'En cours', 'Terminée'] as const;
+export const ACTIVITY_STATUSES = ['À faire', 'En cours', 'Terminé', 'Annulé'] as const;
 export type ActivityStatus = typeof ACTIVITY_STATUSES[number];
-
-// Activity priorities
-export const ACTIVITY_PRIORITIES = ['Haute', 'Moyenne', 'Basse'] as const;
-export type ActivityPriority = typeof ACTIVITY_PRIORITIES[number];
 
 // Utility functions
 export function formatCurrency(amount: number): string {

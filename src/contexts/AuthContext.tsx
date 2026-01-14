@@ -2,20 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-// Local type definitions for database tables
-interface Profile {
-  id: string;
-  organization_id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-}
-
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-}
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -28,26 +14,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Cast supabase to any to bypass strict typing with empty database
-const db = supabase as unknown as {
-  from: (table: string) => {
-    select: (columns?: string) => {
-      eq: (column: string, value: string) => {
-        single: () => Promise<{ data: Record<string, unknown> | null; error: Error | null }>;
-      };
-    };
-    insert: (data: Record<string, unknown>) => {
-      select: () => {
-        single: () => Promise<{ data: Record<string, unknown> | null; error: Error | null }>;
-      };
-    };
-    delete: () => {
-      eq: (column: string, value: string) => Promise<{ error: Error | null }>;
-    };
-  };
-  auth: typeof supabase.auth;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -58,14 +24,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     async function fetchOrganizationId() {
       if (user) {
-        const { data, error } = await db
+        const { data, error } = await supabase
           .from('profiles')
           .select('organization_id')
           .eq('id', user.id)
           .single();
         
         if (data && !error) {
-          setOrganizationId(data.organization_id as string);
+          setOrganizationId(data.organization_id);
         } else {
           console.error('Failed to fetch organization:', error);
           setOrganizationId(null);
@@ -110,17 +76,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
     // Create organization first
-    const { data: orgData, error: orgError } = await db
+    const { data: orgData, error: orgError } = await supabase
       .from('organizations')
       .insert({ name: orgName, slug })
       .select()
       .single();
 
-    if (orgError || !orgData) {
-      return { error: new Error(`Erreur création agence: ${orgError?.message || 'Unknown error'}`) };
+    if (orgError) {
+      return { error: new Error(`Erreur création agence: ${orgError.message}`) };
     }
-
-    const orgId = orgData.id as string;
 
     // Sign up user
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -130,42 +94,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-          organization_id: orgId
+          organization_id: orgData.id
         }
       }
     });
 
     if (authError) {
       // Rollback org creation
-      await db.from('organizations').delete().eq('id', orgId);
+      await supabase.from('organizations').delete().eq('id', orgData.id);
       return { error: authError };
     }
 
     if (authData.user) {
       // Create profile
-      const { error: profileError } = await db
+      const { error: profileError } = await supabase
         .from('profiles')
         .insert({
           id: authData.user.id,
-          organization_id: orgId,
+          organization_id: orgData.id,
           full_name: fullName
-        })
-        .select()
-        .single();
+        });
 
       if (profileError) {
         return { error: new Error(`Erreur création profil: ${profileError.message}`) };
       }
 
       // Create user role (Admin for first user)
-      const { error: roleError } = await db
+      const { error: roleError } = await supabase
         .from('user_roles')
         .insert({
           user_id: authData.user.id,
           role: 'Admin'
-        })
-        .select()
-        .single();
+        });
 
       if (roleError) {
         return { error: new Error(`Erreur attribution rôle: ${roleError.message}`) };

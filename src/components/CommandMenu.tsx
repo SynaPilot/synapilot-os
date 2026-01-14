@@ -32,9 +32,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-// Cast supabase to any to bypass strict typing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any;
 import { useProfile } from '@/hooks/useOrganization';
 import {
   Plus,
@@ -111,7 +108,7 @@ export function CommandMenu() {
   const createContactMutation = useMutation({
     mutationFn: async (values: QuickContactValues) => {
       if (!profile?.organization_id) throw new Error('Organisation non trouvée');
-      const { error } = await db.from('contacts').insert({
+      const { error } = await supabase.from('contacts').insert({
         full_name: values.full_name,
         email: values.email || null,
         phone: values.phone || null,
@@ -132,7 +129,7 @@ export function CommandMenu() {
   const createDealMutation = useMutation({
     mutationFn: async (values: QuickDealValues) => {
       if (!profile?.organization_id) throw new Error('Organisation non trouvée');
-      const { error } = await db.from('deals').insert({
+      const { error } = await supabase.from('deals').insert({
         name: values.name,
         amount: values.amount,
         organization_id: profile.organization_id,
@@ -152,7 +149,7 @@ export function CommandMenu() {
   const createActivityMutation = useMutation({
     mutationFn: async (values: QuickActivityValues) => {
       if (!profile?.organization_id) throw new Error('Organisation non trouvée');
-      const { error } = await db.from('activities').insert({
+      const { error } = await supabase.from('activities').insert({
         type: values.type,
         content: values.content,
         organization_id: profile.organization_id,

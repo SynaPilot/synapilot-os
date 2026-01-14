@@ -18,29 +18,11 @@ import { useNavigate } from 'react-router-dom';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import type { Tables } from '@/integrations/supabase/types';
 
-// Local type definitions
-interface Contact {
-  id: string;
-  full_name: string;
-  updated_at: string | null;
-  pipeline_stage: string | null;
-  urgency_score: number | null;
-}
-
-interface Deal {
-  id: string;
-  name: string;
-  updated_at: string | null;
-  stage: string | null;
-}
-
-interface Activity {
-  id: string;
-  content: string | null;
-  date: string | null;
-  status: string | null;
-}
+type Contact = Tables<'contacts'>;
+type Deal = Tables<'deals'>;
+type Activity = Tables<'activities'>;
 
 interface ActionCardProps {
   priority: 'urgent' | 'high' | 'medium' | 'low';
