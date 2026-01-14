@@ -20,7 +20,8 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target } from 'lucide-react';
+import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SmartBadges } from '@/components/SmartBadges';
 import { getContactBadges } from '@/lib/smart-features';
@@ -54,7 +55,7 @@ type ContactFormValues = z.infer<typeof contactSchema>;
 
 const pageVariants = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 
-function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: boolean }) {
+function ContactCard({ contact, isDragging, onClick }: { contact: Contact; isDragging?: boolean; onClick?: (e: React.MouseEvent) => void }) {
   const getScoreColor = (score: number | null) => {
     if (!score) return 'bg-muted text-muted-foreground';
     if (score >= 8) return 'bg-error/20 text-error border-error/30';
@@ -71,16 +72,20 @@ function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: b
     <motion.div
       whileHover={!isDragging ? { scale: 1.02, y: -2 } : undefined}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
+      onClick={onClick}
     >
       <Card className={cn(
         'border-border transition-all duration-200',
         isDragging 
           ? 'opacity-60 scale-105 shadow-glow rotate-2 border-primary/40' 
-          : 'hover:border-primary/30 hover:shadow-card-hover'
+          : 'hover:border-primary/30 hover:shadow-card-hover cursor-pointer'
       )}>
         <CardContent className="p-4">
           <div className="space-y-3">
-            <p className="font-medium text-sm truncate">{contact.full_name}</p>
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-sm truncate flex-1">{contact.full_name}</p>
+              <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
             {contact.phone && (
               <p className="text-caption text-muted-foreground flex items-center gap-1.5 font-mono">
                 <Phone className="w-3 h-3 stroke-2" />{contact.phone}
@@ -99,18 +104,26 @@ function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: b
   );
 }
 
-function SortableContactCard({ contact }: { contact: Contact }) {
+function SortableContactCard({ contact, onNavigate }: { contact: Contact; onNavigate: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: contact.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only navigate if not dragging
+    if (!isDragging) {
+      e.stopPropagation();
+      onNavigate(contact.id);
+    }
+  };
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-      <ContactCard contact={contact} isDragging={isDragging} />
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing group">
+      <ContactCard contact={contact} isDragging={isDragging} onClick={handleClick} />
     </div>
   );
 }
 
-function KanbanColumn({ stage, contacts }: { stage: PipelineStage; contacts: Contact[] }) {
+function KanbanColumn({ stage, contacts, onNavigate }: { stage: PipelineStage; contacts: Contact[]; onNavigate: (id: string) => void }) {
   const getStageColor = (stage: PipelineStage) => {
     const colors: Record<PipelineStage, string> = {
       lead: 'border-l-blue-500', contacted: 'border-l-purple-500', qualified: 'border-l-cyan-500',
@@ -132,7 +145,7 @@ function KanbanColumn({ stage, contacts }: { stage: PipelineStage; contacts: Con
           <AnimatePresence mode="popLayout">
             {contacts.map((contact) => (
               <motion.div key={contact.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
-                <SortableContactCard contact={contact} />
+                <SortableContactCard contact={contact} onNavigate={onNavigate} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -148,6 +161,11 @@ export default function Contacts() {
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const queryClient = useQueryClient();
   const { organizationId } = useAuth();
+  const navigate = useNavigate();
+
+  const handleNavigateToContact = (id: string) => {
+    navigate(`/contacts/${id}`);
+  };
 
   const contactsQueryKey = organizationId ? (['contacts', organizationId] as const) : (['contacts'] as const);
 
@@ -305,7 +323,7 @@ export default function Contacts() {
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                 <div className="flex gap-4 overflow-x-auto pb-4">
-                  {PIPELINE_STAGES.map((stage) => (<KanbanColumn key={stage} stage={stage} contacts={contactsByStage[stage]} />))}
+                  {PIPELINE_STAGES.map((stage) => (<KanbanColumn key={stage} stage={stage} contacts={contactsByStage[stage]} onNavigate={handleNavigateToContact} />))}
                 </div>
                 <DragOverlay dropAnimation={{
                   duration: 200,
@@ -357,8 +375,14 @@ export default function Contacts() {
                 ) : (
                   <div className="divide-y divide-white/5">
                     {filteredContacts?.map((contact, index) => (
-                      <motion.div key={contact.id} className="p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
-                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: index * 0.03 }}>
+                      <motion.div 
+                        key={contact.id} 
+                        className="p-4 flex items-center justify-between hover:bg-secondary/50 transition-colors cursor-pointer"
+                        initial={{ opacity: 0, x: -10 }} 
+                        animate={{ opacity: 1, x: 0 }} 
+                        transition={{ duration: 0.2, delay: index * 0.03 }}
+                        onClick={() => handleNavigateToContact(contact.id)}
+                      >
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><User className="w-5 h-5 text-primary" /></div>
                           <div>
@@ -373,6 +397,7 @@ export default function Contacts() {
                           {contact.role && <Badge variant="outline" className="text-xs">{contact.role}</Badge>}
                           <Badge variant="secondary" className="text-xs">{PIPELINE_STAGE_LABELS[contact.pipeline_stage as PipelineStage]}</Badge>
                           {contact.last_contact_date && <span className="text-xs text-muted-foreground font-mono">{formatRelativeTime(contact.last_contact_date)}</span>}
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" />
                         </div>
                       </motion.div>
                     ))}

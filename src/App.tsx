@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
+const ContactDetail = lazy(() => import("./pages/ContactDetail"));
 const Properties = lazy(() => import("./pages/Properties"));
 const Deals = lazy(() => import("./pages/Deals"));
 const Activities = lazy(() => import("./pages/Activities"));
@@ -76,6 +77,9 @@ function AppRoutes() {
       } />
       <Route path="/contacts" element={
         <ProtectedRoute><Contacts /></ProtectedRoute>
+      } />
+      <Route path="/contacts/:id" element={
+        <ProtectedRoute><ContactDetail /></ProtectedRoute>
       } />
       {/* Keep /leads as alias for backwards compatibility */}
       <Route path="/leads" element={
