@@ -37,6 +37,10 @@ export function AppHeader() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
+  // Cast supabase to any for untyped tables
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
   const { data: searchData } = useQuery({
     queryKey: ['global-search', searchQuery],
     queryFn: async (): Promise<SearchResults> => {
@@ -47,17 +51,17 @@ export function AppHeader() {
       const query = `%${searchQuery}%`;
       
       const [contactsRes, dealsRes, propertiesRes] = await Promise.all([
-        supabase
+        db
           .from('contacts')
           .select('id, full_name, email, phone')
           .or(`full_name.ilike.${query},email.ilike.${query},phone.ilike.${query}`)
           .limit(5),
-        supabase
+        db
           .from('deals')
           .select('id, name, amount, stage')
           .ilike('name', query)
           .limit(5),
-        supabase
+        db
           .from('properties')
           .select('id, address, price')
           .ilike('address', query)

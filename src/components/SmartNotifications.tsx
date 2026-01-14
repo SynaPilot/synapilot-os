@@ -23,11 +23,29 @@ import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { differenceInDays, differenceInHours, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import type { Tables } from '@/integrations/supabase/types';
 
-type Contact = Tables<'contacts'>;
-type Deal = Tables<'deals'>;
-type Activity = Tables<'activities'>;
+// Local type definitions
+interface Contact {
+  id: string;
+  full_name: string;
+  created_at: string;
+}
+
+interface Deal {
+  id: string;
+  name: string;
+  updated_at: string | null;
+  stage: string | null;
+}
+
+interface Activity {
+  id: string;
+  type: string;
+  content: string | null;
+  date: string | null;
+  status: string | null;
+  created_at: string;
+}
 
 type NotificationType = 'warning' | 'success' | 'info' | 'error';
 
