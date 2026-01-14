@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, User, Mail, Phone, Calendar, FileText, DollarSign, Home } from 'lucide-react';
+import { Search, User, Mail, Phone, Calendar, FileText, DollarSign, Home } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,23 +18,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { SmartNotifications } from '@/components/SmartNotifications';
 import { useAuth } from '@/contexts/AuthContext';
-import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { formatRelativeTime, formatCurrency } from '@/lib/formatters';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-
-type ActivityType = 'email' | 'phone' | 'meeting' | 'note' | 'visit' | 'other';
-
-interface Notification {
-  id: string;
-  type: ActivityType;
-  title: string;
-  description: string | null;
-  created_at: string;
-  contact: { name: string } | null;
-}
 
 interface SearchResults {
   contacts: Array<{ id: string; full_name: string; email: string | null; phone: string | null }>;
@@ -47,22 +36,6 @@ export function AppHeader() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  const { data: notifications } = useOrgQuery<Notification[]>(
-    'activities',
-    {
-      select: `
-        id,
-        type,
-        title,
-        description,
-        created_at,
-        contact:contacts(name)
-      `,
-      orderBy: { column: 'created_at', ascending: false },
-      limit: 5
-    }
-  );
 
   const { data: searchData } = useQuery({
     queryKey: ['global-search', searchQuery],
@@ -103,20 +76,6 @@ export function AppHeader() {
   const initials = user?.user_metadata?.full_name
     ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
     : 'U';
-
-  const getActivityIcon = (type: ActivityType) => {
-    switch (type) {
-      case 'email':
-        return <Mail className="w-4 h-4 text-primary" />;
-      case 'phone':
-        return <Phone className="w-4 h-4 text-primary" />;
-      case 'meeting':
-      case 'visit':
-        return <Calendar className="w-4 h-4 text-primary" />;
-      default:
-        return <FileText className="w-4 h-4 text-primary" />;
-    }
-  };
 
   const handleResultClick = (type: 'contact' | 'deal' | 'property', id: string) => {
     setSearchQuery('');
@@ -243,55 +202,8 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative rounded-xl">
-                <Bell className="w-5 h-5 text-muted-foreground stroke-2" />
-                {notifications && notifications.length > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full animate-pulse" />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0 bg-background-secondary border border-border shadow-modal rounded-xl" align="end">
-              <div className="p-4 border-b border-border">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display font-semibold">Notifications</h4>
-                  <Badge variant="secondary" className="rounded-lg">{notifications?.length || 0}</Badge>
-                </div>
-              </div>
-              
-              <div className="p-2 max-h-96 overflow-y-auto">
-                {notifications && notifications.length > 0 ? (
-                  notifications.map((notif) => (
-                    <div 
-                      key={notif.id}
-                      className="p-3 rounded-xl hover:bg-background-hover transition-all duration-200 cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          {getActivityIcon(notif.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{notif.title}</p>
-                          {notif.description && (
-                            <p className="text-caption text-muted-foreground truncate">{notif.description}</p>
-                          )}
-                          <p className="text-caption text-muted-foreground mt-1">
-                            {formatRelativeTime(notif.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Bell className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                    <p className="text-sm">Aucune notification</p>
-                  </div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* Smart Notifications */}
+          <SmartNotifications />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

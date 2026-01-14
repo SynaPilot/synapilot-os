@@ -22,6 +22,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
+import { SmartBadges } from '@/components/SmartBadges';
+import { getContactBadges } from '@/lib/smart-features';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +62,11 @@ function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: b
     return 'bg-muted text-muted-foreground';
   };
 
+  // Get smart badges for this contact
+  const badges = getContactBadges({
+    last_contact_date: contact.updated_at,
+  });
+
   return (
     <motion.div
       whileHover={!isDragging ? { scale: 1.02, y: -2 } : undefined}
@@ -79,10 +86,12 @@ function ContactCard({ contact, isDragging }: { contact: Contact; isDragging?: b
                 <Phone className="w-3 h-3 stroke-2" />{contact.phone}
               </p>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {contact.role && <Badge variant="outline" className="text-caption">{contact.role}</Badge>}
               <Badge className={cn("text-caption", getScoreColor(contact.urgency_score))}>{contact.urgency_score || 0}/10</Badge>
             </div>
+            {/* Smart Badges */}
+            <SmartBadges badges={badges} compact />
           </div>
         </CardContent>
       </Card>

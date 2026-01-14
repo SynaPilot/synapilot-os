@@ -39,6 +39,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { DEAL_STAGES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
 import { formatCurrency, formatShortDate } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { DealHealthScore } from '@/components/DealHealthScore';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'> & {
@@ -99,6 +100,15 @@ function DealCard({ deal, isDragging }: { deal: Deal; isDragging?: boolean }) {
                 {formatShortDate(deal.expected_close_date)}
               </p>
             )}
+            {/* Deal Health Score */}
+            <DealHealthScore 
+              deal={{
+                updated_at: deal.updated_at,
+                probability: deal.probability,
+                expected_close_date: deal.expected_close_date,
+                stage: deal.stage
+              }} 
+            />
           </div>
         </CardContent>
       </Card>
