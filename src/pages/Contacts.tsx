@@ -20,7 +20,8 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Phone, Mail, User, Loader2 } from 'lucide-react';
+import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -322,7 +323,28 @@ export default function Contacts() {
                 {isLoading ? (
                   <div className="p-4 space-y-2">{[...Array(5)].map((_, i) => (<Skeleton key={i} className="h-16 w-full" />))}</div>
                 ) : filteredContacts?.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground"><User className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-sm">Aucun contact trouvé</p></div>
+                  <EmptyState
+                    icon={Users}
+                    iconGradient="from-cyan-500/20 to-blue-500/20"
+                    title="Votre pipeline commence ici"
+                    description="Importez vos contacts ou créez-en de nouveaux pour démarrer votre activité commerciale."
+                    action={{
+                      label: "Créer un contact",
+                      onClick: () => setIsDialogOpen(true),
+                      icon: <Plus className="w-5 h-5" />
+                    }}
+                    secondaryAction={{
+                      label: "Importer un fichier CSV",
+                      onClick: () => {},
+                      icon: <Upload className="w-5 h-5" />
+                    }}
+                    features={[
+                      { icon: <TrendingUp className="w-5 h-5 text-primary" />, title: "Pipeline", desc: "Suivez chaque étape de vente" },
+                      { icon: <Target className="w-5 h-5 text-primary" />, title: "Scoring", desc: "Priorisez vos prospects chauds" },
+                      { icon: <Phone className="w-5 h-5 text-primary" />, title: "Suivi", desc: "Historique des interactions" }
+                    ]}
+                    className="py-8"
+                  />
                 ) : (
                   <div className="divide-y divide-white/5">
                     {filteredContacts?.map((contact, index) => (

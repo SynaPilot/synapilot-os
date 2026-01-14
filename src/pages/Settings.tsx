@@ -1,22 +1,46 @@
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization, useProfile } from '@/hooks/useOrganization';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Building2, User, Bell, Zap } from 'lucide-react';
+import { Building2, User, Bell, Zap, Play } from 'lucide-react';
+import { OnboardingProgress } from '@/components/OnboardingProgress';
+import { useOnboarding } from '@/components/OnboardingTour';
+import { motion } from 'framer-motion';
+
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+};
 
 export default function Settings() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: organization, isLoading: orgLoading } = useOrganization();
   const { data: profile, isLoading: profileLoading } = useProfile();
+  const { restartTour } = useOnboarding();
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <motion.div 
+      className="space-y-6 max-w-2xl"
+      initial="initial"
+      animate="animate"
+      variants={pageVariants}
+      transition={{ duration: 0.3 }}
+    >
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Réglages</h1>
           <p className="text-muted-foreground">Gérez votre compte et votre organisation</p>
         </div>
+
+        {/* Onboarding Progress Card */}
+        <OnboardingProgress 
+          onNavigate={(path) => navigate(path)} 
+          onRestartTour={restartTour}
+        />
 
         <Card className="glass">
           <CardHeader className="pb-4">
@@ -104,6 +128,6 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
-    </div>
+    </motion.div>
   );
 }

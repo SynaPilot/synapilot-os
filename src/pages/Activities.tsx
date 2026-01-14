@@ -34,8 +34,11 @@ import {
   MapPin,
   RefreshCw,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Home,
+  Play
 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
@@ -345,14 +348,28 @@ export default function Activities() {
                 ))}
               </div>
             ) : filteredActivities?.length === 0 ? (
-              <div className="p-12 text-center">
-                <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">Aucune activité</p>
-                <Button className="mt-4" size="sm" onClick={() => setIsDialogOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Créer une activité
-                </Button>
-              </div>
+              <EmptyState
+                icon={Calendar}
+                iconGradient="from-blue-500/20 to-purple-500/20"
+                title="Organisez votre journée"
+                description="Créez des tâches, planifiez des visites et suivez vos relances. Toutes vos activités au même endroit."
+                action={{
+                  label: "Créer ma première activité",
+                  onClick: () => setIsDialogOpen(true),
+                  icon: <Plus className="w-5 h-5" />
+                }}
+                secondaryAction={{
+                  label: "Voir la démo",
+                  onClick: () => {},
+                  icon: <Play className="w-5 h-5" />
+                }}
+                features={[
+                  { icon: <Phone className="w-5 h-5 text-primary" />, title: "Relances", desc: "Programmez des rappels automatiques" },
+                  { icon: <Home className="w-5 h-5 text-primary" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain" },
+                  { icon: <Mail className="w-5 h-5 text-primary" />, title: "Emails", desc: "Suivez vos échanges clients" }
+                ]}
+                className="py-8"
+              />
             ) : (
               <div className="divide-y divide-white/5">
                 {filteredActivities?.map((activity, index) => (

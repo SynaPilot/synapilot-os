@@ -146,21 +146,21 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-full px-6 gap-4">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="md:hidden" />
-          <Popover open={isSearchOpen && searchQuery.length >= 2} onOpenChange={setIsSearchOpen}>
-            <PopoverTrigger asChild>
-              <div className="relative hidden sm:block">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground stroke-2" />
-                <Input
-                  placeholder="Rechercher contacts, deals, biens..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsSearchOpen(e.target.value.length >= 2);
-                  }}
-                  className="pl-11 w-96 bg-background-secondary"
-                />
-              </div>
-            </PopoverTrigger>
+            <Popover open={isSearchOpen && searchQuery.length >= 2} onOpenChange={setIsSearchOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative hidden sm:block header-search">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground stroke-2" />
+                  <Input
+                    placeholder="Rechercher contacts, deals, biens..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsSearchOpen(e.target.value.length >= 2);
+                    }}
+                    className="pl-11 w-96 bg-background-secondary"
+                  />
+                </div>
+              </PopoverTrigger>
             <PopoverContent className="w-96 p-0 bg-background-secondary border border-border shadow-modal rounded-xl" align="start">
               <div className="max-h-96 overflow-y-auto">
                 {/* Contacts */}
@@ -295,7 +295,7 @@ export function AppHeader() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 header-user-menu">
                 <Avatar className="h-10 w-10 border-2 border-primary/20 transition-all duration-200 hover:border-primary/40 hover:shadow-glow-sm">
                   <AvatarImage src={user?.user_metadata?.avatar_url} />
                   <AvatarFallback className="bg-primary/10 text-primary font-display font-semibold">

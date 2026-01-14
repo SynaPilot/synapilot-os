@@ -33,8 +33,13 @@ import {
   Bed,
   Square,
   Loader2,
-  Building2
+  Building2,
+  Upload,
+  Camera,
+  MapPin,
+  Share2
 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
@@ -380,16 +385,27 @@ export default function Properties() {
             ))}
           </div>
         ) : filteredProperties?.length === 0 ? (
-          <Card className="glass border-white/10">
-            <CardContent className="py-12 text-center">
-              <Home className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">Aucun bien trouvé</p>
-              <Button className="mt-4" size="sm" onClick={() => setIsDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Ajouter un bien
-              </Button>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Home}
+            iconGradient="from-purple-500/20 to-pink-500/20"
+            title="Votre portefeuille immobilier"
+            description="Ajoutez vos biens avec photos, géolocalisation et partagez-les facilement avec vos clients."
+            action={{
+              label: "Ajouter mon premier bien",
+              onClick: () => setIsDialogOpen(true),
+              icon: <Plus className="w-5 h-5" />
+            }}
+            secondaryAction={{
+              label: "Importer depuis Excel",
+              onClick: () => {},
+              icon: <Upload className="w-5 h-5" />
+            }}
+            features={[
+              { icon: <Camera className="w-5 h-5 text-primary" />, title: "Photos HD", desc: "Galerie photos haute qualité" },
+              { icon: <MapPin className="w-5 h-5 text-primary" />, title: "Géolocalisation", desc: "Cartographie intégrée" },
+              { icon: <Share2 className="w-5 h-5 text-primary" />, title: "Partage clients", desc: "Envoyez en un clic" }
+            ]}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProperties?.map((property, index) => (
