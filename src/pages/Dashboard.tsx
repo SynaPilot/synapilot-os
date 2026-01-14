@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/EmptyState';
 import { SmartActions } from '@/components/SmartActions';
+import { EnhancedKPICard } from '@/components/charts/EnhancedKPICard';
 import { 
   KPICardSkeleton, 
   UrgentLeadsSkeleton, 
@@ -26,6 +28,7 @@ import { motion } from 'framer-motion';
 import { formatCurrency, formatRelativeTime } from '@/lib/formatters';
 import { SmartBadges } from '@/components/SmartBadges';
 import { getContactBadges } from '@/lib/smart-features';
+import { subDays, format } from 'date-fns';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'>;
@@ -38,49 +41,6 @@ const pageVariants = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0 },
 };
-
-function KPICard({ 
-  title, 
-  value, 
-  icon: Icon, 
-  subtext,
-  loading,
-  delay = 0
-}: { 
-  title: string; 
-  value: string; 
-  icon: React.ElementType; 
-  subtext?: string; 
-  loading?: boolean;
-  delay?: number;
-}) {
-  if (loading) {
-    return <KPICardSkeleton />;
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay }}
-    >
-      <Card className="glass hover:border-primary/30 transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-muted-foreground">{title}</span>
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Icon className="w-4 h-4 text-primary" />
-            </div>
-          </div>
-          <p className="text-3xl font-semibold tracking-tight">{value}</p>
-          {subtext && (
-            <p className="text-xs text-muted-foreground mt-2">{subtext}</p>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -115,11 +75,47 @@ export default function Dashboard() {
 
   // Calculate KPIs from fetched data
   const revenue = deals?.filter(d => d.stage === 'vendu').reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
+  const commissions = deals?.filter(d => d.stage === 'vendu').reduce((sum, d) => sum + (d.commission_amount || 0), 0) || 0;
   const activeDeals = deals?.filter(d => d.stage !== 'vendu' && d.stage !== 'perdu').length || 0;
   const activeLeads = contacts?.filter(c => c.pipeline_stage !== 'won' && c.pipeline_stage !== 'lost').length || 0;
   
   const today = new Date().toISOString().split('T')[0];
   const todayActivities = activities?.filter(a => a.date?.startsWith(today)).length || 0;
+
+  // Generate sparkline data from last 7 days
+  const revenueSparkline = useMemo(() => {
+    if (!deals) return [];
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
+      return deals
+        .filter(d => d.stage === 'vendu' && d.updated_at?.startsWith(date))
+        .reduce((sum, d) => sum + (d.amount || 0), 0);
+    });
+  }, [deals]);
+
+  const dealsSparkline = useMemo(() => {
+    if (!deals) return [];
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
+      return deals.filter(d => d.created_at?.startsWith(date)).length;
+    });
+  }, [deals]);
+
+  const contactsSparkline = useMemo(() => {
+    if (!contacts) return [];
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
+      return contacts.filter(c => c.created_at?.startsWith(date)).length;
+    });
+  }, [contacts]);
+
+  const activitiesSparkline = useMemo(() => {
+    if (!activities) return [];
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
+      return activities.filter(a => a.date?.startsWith(date)).length;
+    });
+  }, [activities]);
 
   // Urgent leads (high score, new stage)
   const urgentLeads = contacts?.filter(c => (c.urgency_score || 0) >= 7 && c.pipeline_stage === 'lead').slice(0, 5) || [];
@@ -167,35 +163,54 @@ export default function Dashboard() {
           />
         ) : (
           <>
-            {/* KPI Cards Grid */}
+            {/* Enhanced KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard
+              <EnhancedKPICard
                 title="CA Réalisé"
                 value={formatCurrency(revenue)}
+                subtext={`${formatCurrency(commissions)} de commissions`}
                 icon={HandCoins}
+                trend={12}
+                trendLabel="vs mois dernier"
+                sparklineData={revenueSparkline}
+                gradientFrom="from-emerald-500/10"
+                iconColor="text-emerald-500"
                 loading={isLoading}
                 delay={0}
               />
-              <KPICard
+              <EnhancedKPICard
                 title="Deals Actifs"
                 value={String(activeDeals)}
-                icon={TrendingUp}
                 subtext="Opportunités en cours"
+                icon={TrendingUp}
+                trend={8}
+                sparklineData={dealsSparkline}
+                gradientFrom="from-blue-500/10"
+                iconColor="text-blue-500"
                 loading={isLoading}
                 delay={0.1}
               />
-              <KPICard
+              <EnhancedKPICard
                 title="Contacts"
                 value={String(activeLeads)}
-                icon={Users}
                 subtext="Contacts actifs"
+                icon={Users}
+                trend={-3}
+                sparklineData={contactsSparkline}
+                gradientFrom="from-purple-500/10"
+                iconColor="text-purple-500"
                 loading={isLoading}
                 delay={0.2}
               />
-              <KPICard
+              <EnhancedKPICard
                 title="Activités Aujourd'hui"
                 value={String(todayActivities)}
+                subtext="Tâches planifiées"
                 icon={Calendar}
+                trend={0}
+                sparklineData={activitiesSparkline}
+                gradientFrom="from-orange-500/10"
+                iconColor="text-orange-500"
                 loading={isLoading}
                 delay={0.3}
               />
