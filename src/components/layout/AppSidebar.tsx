@@ -26,13 +26,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Contacts', href: '/leads', icon: Users },
-  { name: 'Biens', href: '/properties', icon: Home },
-  { name: 'Pipeline', href: '/deals', icon: TrendingUp },
-  { name: 'Activités', href: '/activities', icon: CheckSquare },
-  { name: 'Statistiques', href: '/stats', icon: BarChart3 },
-  { name: 'Paramètres', href: '/settings', icon: Settings },
+  { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard, className: 'sidebar-dashboard' },
+  { name: 'Contacts', href: '/leads', icon: Users, className: 'sidebar-contacts' },
+  { name: 'Biens', href: '/properties', icon: Home, className: 'sidebar-properties' },
+  { name: 'Pipeline', href: '/deals', icon: TrendingUp, className: 'sidebar-deals' },
+  { name: 'Activités', href: '/activities', icon: CheckSquare, className: 'sidebar-activities' },
+  { name: 'Statistiques', href: '/stats', icon: BarChart3, className: 'sidebar-stats' },
+  { name: 'Paramètres', href: '/settings', icon: Settings, className: 'sidebar-settings' },
 ];
 
 export function AppSidebar() {
@@ -65,6 +65,7 @@ export function AppSidebar() {
                       <Link
                         to={item.href}
                         className={cn(
+                          item.className,
                           'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ease-premium',
                           isActive
                             ? 'bg-primary/10 text-primary border border-primary/20 shadow-glow-sm'
