@@ -185,8 +185,8 @@ export default function Dashboard() {
                 icon={TrendingUp}
                 trend={8}
                 sparklineData={dealsSparkline}
-                gradientFrom="from-blue-500/10"
-                iconColor="text-blue-500"
+                gradientFrom="from-primary/10"
+                iconColor="text-primary"
                 loading={isLoading}
                 delay={0.1}
               />
@@ -197,8 +197,8 @@ export default function Dashboard() {
                 icon={Users}
                 trend={-3}
                 sparklineData={contactsSparkline}
-                gradientFrom="from-purple-500/10"
-                iconColor="text-purple-500"
+                gradientFrom="from-accent/10"
+                iconColor="text-accent"
                 loading={isLoading}
                 delay={0.2}
               />
@@ -209,8 +209,8 @@ export default function Dashboard() {
                 icon={Calendar}
                 trend={0}
                 sparklineData={activitiesSparkline}
-                gradientFrom="from-orange-500/10"
-                iconColor="text-orange-500"
+                gradientFrom="from-cyan-500/10"
+                iconColor="text-cyan-500"
                 loading={isLoading}
                 delay={0.3}
               />

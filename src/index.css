@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600&display=swap');
 
 /* ===== SMOOTH SCROLL & GLOBAL BEHAVIORS ===== */
 html {
@@ -12,37 +12,39 @@ html {
 
 @layer base {
   :root {
-    /* Premium Dark Mode Palette */
-    --background: 0 0% 4%;
-    --background-secondary: 0 0% 8%;
-    --background-tertiary: 0 0% 10%;
-    --background-hover: 0 0% 12%;
+    /* Premium Dark Mode Palette - Refined */
+    --background: 220 16% 6%;
+    --background-secondary: 220 14% 9%;
+    --background-tertiary: 220 12% 12%;
+    --background-hover: 220 12% 15%;
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 8%;
+    --card: 220 14% 9%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 8%;
+    --popover: 220 14% 9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 168 76% 42%;
-    --primary-foreground: 0 0% 98%;
+    /* Primary: Premium Blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 10%;
+    --secondary: 220 12% 12%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
+    --muted: 220 12% 15%;
+    --muted-foreground: 220 10% 55%;
 
-    --accent: 168 76% 42%;
-    --accent-foreground: 0 0% 98%;
+    /* Accent: Vibrant Violet */
+    --accent: 263 70% 58%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 100% / 0.06;
-    --input: 0 0% 12%;
-    --ring: 168 76% 42%;
+    --border: 220 14% 18%;
+    --input: 220 12% 12%;
+    --ring: 217 91% 60%;
 
     --radius: 0.75rem;
 
@@ -53,20 +55,21 @@ html {
     --info: 217 91% 60%;
     
     /* Sidebar */
-    --sidebar-background: 0 0% 5%;
+    --sidebar-background: 220 16% 5%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 168 76% 42%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 10%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 12% 12%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 100% / 0.06;
-    --sidebar-ring: 168 76% 42%;
+    --sidebar-border: 220 14% 15%;
+    --sidebar-ring: 217 91% 60%;
 
-    /* Premium Shadows */
-    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-    --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.6);
-    --shadow-hover: 0 8px 32px rgba(20, 184, 166, 0.15);
-    --shadow-glow: 0 0 40px rgba(20, 184, 166, 0.2);
+    /* Premium Shadows - Blue tinted */
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
+    --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.7);
+    --shadow-hover: 0 8px 32px rgba(59, 130, 246, 0.15);
+    --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.2);
+    --shadow-accent: 0 0 40px rgba(139, 92, 246, 0.2);
   }
 }
 
@@ -132,20 +135,33 @@ html {
   /* Glass effect */
   .glass {
     @apply bg-card/80 backdrop-blur-xl;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid hsl(var(--border));
   }
 
-  /* Premium glow effects */
+  /* Premium glow effects - Blue */
   .glow-sm {
-    box-shadow: 0 0 20px rgba(20, 184, 166, 0.15);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
   }
 
   .glow-md {
-    box-shadow: 0 0 40px rgba(20, 184, 166, 0.2);
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.2);
   }
 
   .glow-lg {
-    box-shadow: 0 0 60px rgba(20, 184, 166, 0.25);
+    box-shadow: 0 0 60px rgba(59, 130, 246, 0.25);
+  }
+
+  /* Accent glow effects - Violet */
+  .glow-accent-sm {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  }
+
+  .glow-accent-md {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.2);
+  }
+
+  .glow-accent-lg {
+    box-shadow: 0 0 60px rgba(139, 92, 246, 0.25);
   }
 
   /* Shadow utilities */
@@ -161,12 +177,21 @@ html {
     box-shadow: var(--shadow-hover);
   }
 
-  /* Gradient text for branding */
+  /* Gradient text for branding - Blue to Violet */
   .text-gradient {
-    background: linear-gradient(135deg, #4b8bff 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Premium gradient backgrounds */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(263 70% 58%) 100%);
+  }
+
+  .bg-gradient-primary-subtle {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
   }
 
   /* Background levels */
@@ -289,10 +314,10 @@ html {
   animation: shake 0.3s ease-in-out;
 }
 
-/* Premium input focus glow */
+/* Premium input focus glow - Blue */
 input:focus, textarea:focus, select:focus {
   border-color: hsl(var(--primary)) !important;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 /* ===== CUSTOM CURSORS ===== */

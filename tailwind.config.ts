@@ -91,13 +91,16 @@ export default {
         '22': '5.5rem',
       },
       boxShadow: {
-        'card': '0 4px 24px rgba(0, 0, 0, 0.4)',
-        'card-hover': '0 8px 32px rgba(20, 184, 166, 0.15)',
-        'modal': '0 20px 60px rgba(0, 0, 0, 0.6)',
-        'glow': '0 0 40px rgba(20, 184, 166, 0.2)',
-        'glow-sm': '0 0 20px rgba(20, 184, 166, 0.15)',
+        'card': '0 4px 24px rgba(0, 0, 0, 0.5)',
+        'card-hover': '0 8px 32px rgba(59, 130, 246, 0.15)',
+        'modal': '0 20px 60px rgba(0, 0, 0, 0.7)',
+        'glow': '0 0 40px rgba(59, 130, 246, 0.2)',
+        'glow-sm': '0 0 20px rgba(59, 130, 246, 0.15)',
+        'glow-accent': '0 0 40px rgba(139, 92, 246, 0.2)',
+        'glow-accent-sm': '0 0 20px rgba(139, 92, 246, 0.15)',
         'button': '0 2px 8px rgba(0, 0, 0, 0.3)',
-        'button-hover': '0 4px 16px rgba(20, 184, 166, 0.25)',
+        'button-hover': '0 4px 16px rgba(59, 130, 246, 0.25)',
+        'button-accent': '0 4px 16px rgba(139, 92, 246, 0.25)',
       },
       keyframes: {
         "accordion-down": {
