@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/EmptyState';
+import { SmartActions } from '@/components/SmartActions';
 import { 
   KPICardSkeleton, 
   UrgentLeadsSkeleton, 
@@ -23,6 +24,8 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { formatCurrency, formatRelativeTime } from '@/lib/formatters';
+import { SmartBadges } from '@/components/SmartBadges';
+import { getContactBadges } from '@/lib/smart-features';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Deal = Tables<'deals'>;
@@ -268,6 +271,15 @@ export default function Dashboard() {
               ) : null;
             })()}
 
+            {/* Smart Actions - AI Recommendations */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.35 }}
+            >
+              <SmartActions />
+            </motion.div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Urgent Leads */}
               <motion.div
@@ -300,29 +312,35 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {urgentLeads.map((lead) => (
-                          <motion.div
-                            key={lead.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                            whileHover={{ scale: 1.01 }}
-                            transition={{ duration: 0.15 }}
-                          >
-                            <div>
-                              <p className="font-medium text-sm">{lead.full_name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">
-                                {lead.phone || 'Pas de téléphone'}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="destructive" className="text-xs font-mono">
-                                {lead.urgency_score}/10
-                              </Badge>
-                              <Button size="icon" variant="ghost" className="h-8 w-8">
-                                <Phone className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          </motion.div>
-                        ))}
+                        {urgentLeads.map((lead) => {
+                          const badges = getContactBadges({
+                            last_contact_date: lead.updated_at,
+                          });
+                          return (
+                            <motion.div
+                              key={lead.id}
+                              className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                              whileHover={{ scale: 1.01 }}
+                              transition={{ duration: 0.15 }}
+                            >
+                              <div className="space-y-1">
+                                <p className="font-medium text-sm">{lead.full_name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  {lead.phone || 'Pas de téléphone'}
+                                </p>
+                                <SmartBadges badges={badges} compact />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="destructive" className="text-xs font-mono">
+                                  {lead.urgency_score}/10
+                                </Badge>
+                                <Button size="icon" variant="ghost" className="h-8 w-8">
+                                  <Phone className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
