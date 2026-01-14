@@ -7,8 +7,12 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { CommandMenu } from "@/components/CommandMenu";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { EasterEgg } from "@/components/EasterEgg";
+import { usePerformanceMonitor } from "@/hooks/usePerformanceMonitor";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Lazy load pages for code splitting
 const Login = lazy(() => import("./pages/Login"));
@@ -33,10 +37,15 @@ const queryClient = new QueryClient({
 function PageLoader() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col items-center gap-4"
+      >
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Chargement...</p>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -94,11 +103,14 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
+function AppWithMonitoring() {
+  // Enable performance monitoring in production
+  usePerformanceMonitor(import.meta.env.PROD);
+  
+  return (
+    <>
+      <OfflineIndicator />
+      <EasterEgg />
       <Toaster />
       <Sonner 
         position="top-right"
@@ -111,13 +123,25 @@ const App = () => (
           className: 'backdrop-blur-sm'
         }}
       />
-          <BrowserRouter>
-            <Suspense fallback={<PageLoader />}>
-              <AppRoutes />
-            </Suspense>
-            {/* Global Command Menu - only visible when authenticated */}
-            <CommandMenu />
-          </BrowserRouter>
+      <BrowserRouter>
+        <AnimatePresence mode="wait">
+          <Suspense fallback={<PageLoader />}>
+            <AppRoutes />
+          </Suspense>
+        </AnimatePresence>
+        {/* Global Command Menu - only visible when authenticated */}
+        <CommandMenu />
+      </BrowserRouter>
+    </>
+  );
+}
+
+const App = () => (
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <AppWithMonitoring />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
