@@ -35,6 +35,7 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { DEAL_STAGES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
 import { formatCurrency, formatShortDate } from '@/lib/formatters';
@@ -153,6 +154,12 @@ function KanbanColumn({
   deals: Deal[];
   totalAmount: number;
 }) {
+  // Use droppable to make the column a valid drop target
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column-${stage}`,
+    data: { stage }
+  });
+
   const getStageColor = (stage: DealStage) => {
     const colors: Record<DealStage, string> = {
       nouveau: 'border-l-blue-500',
@@ -169,7 +176,13 @@ function KanbanColumn({
   };
 
   return (
-    <div className={`flex-shrink-0 w-64 min-w-[16rem] rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10 flex flex-col`}>
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        `flex-shrink-0 w-64 min-w-[16rem] rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10 flex flex-col transition-all duration-200`,
+        isOver && 'ring-2 ring-primary/50 bg-primary/5'
+      )}
+    >
       <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-medium text-sm">{DEAL_STAGE_LABELS[stage]}</h3>
@@ -345,14 +358,26 @@ export default function Deals() {
     const draggedDealId = active.id as string;
     const overId = over.id as string;
     
-    // Check if dropped over a column (stage)
-    const targetStage = DEAL_STAGES.find((stage) => 
-      dealsByStage[stage].some((d) => d.id === overId) || stage === overId
-    );
+    // Determine target stage from over data or ID
+    let targetStage: DealStage | undefined;
     
-    if (targetStage) {
+    // Check if dropped over a column (column IDs are "column-{stage}")
+    if (overId.startsWith('column-')) {
+      targetStage = overId.replace('column-', '') as DealStage;
+    } else {
+      // Dropped over another deal card - find which column it's in
+      for (const stage of DEAL_STAGES) {
+        if (dealsByStage[stage].some((d) => d.id === overId)) {
+          targetStage = stage;
+          break;
+        }
+      }
+    }
+    
+    if (targetStage && DEAL_STAGES.includes(targetStage)) {
       const draggedDeal = deals?.find((d) => d.id === draggedDealId);
       if (draggedDeal && draggedDeal.stage !== targetStage) {
+        console.log(`Moving deal ${draggedDealId} from ${draggedDeal.stage} to ${targetStage}`);
         updateStageMutation.mutate({ id: draggedDealId, stage: targetStage });
       }
     }
