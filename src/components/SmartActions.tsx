@@ -203,7 +203,7 @@ export function SmartActions() {
       <Card className="glass">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <Sparkles className="w-4 h-4 text-accent" />
             Actions Recommandées
           </CardTitle>
         </CardHeader>
@@ -221,7 +221,7 @@ export function SmartActions() {
       <Card className="glass">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <Sparkles className="w-4 h-4 text-accent" />
             Actions Recommandées
           </CardTitle>
         </CardHeader>
@@ -237,14 +237,14 @@ export function SmartActions() {
   }
   
   return (
-    <Card className="glass border-purple-500/20">
+    <Card className="glass border-accent/20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <Sparkles className="w-4 h-4 text-accent" />
             Actions Recommandées
           </CardTitle>
-          <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">
+          <Badge variant="accent">
             IA
           </Badge>
         </div>

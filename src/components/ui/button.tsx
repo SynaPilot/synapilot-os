@@ -11,12 +11,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground rounded-xl shadow-button hover:shadow-button-hover hover:scale-[1.02] hover:brightness-110",
+        accent: "bg-gradient-to-r from-primary to-accent text-white rounded-xl shadow-button hover:shadow-glow-accent hover:scale-[1.02] hover:brightness-110",
         destructive: "bg-destructive text-destructive-foreground rounded-xl hover:bg-destructive/90",
         outline: "border border-border bg-transparent text-foreground rounded-xl hover:bg-background-hover hover:border-primary/30",
         secondary: "bg-secondary text-secondary-foreground rounded-xl hover:bg-background-hover",
         ghost: "hover:bg-background-hover hover:text-foreground rounded-xl",
         link: "text-primary underline-offset-4 hover:underline",
-        hero: "bg-primary text-primary-foreground font-semibold rounded-xl shadow-button hover:shadow-glow hover:scale-[1.02] hover:brightness-110",
+        hero: "bg-gradient-to-r from-primary to-accent text-white font-semibold rounded-xl shadow-button hover:shadow-glow hover:scale-[1.02] hover:brightness-110",
         glow: "bg-primary/10 text-primary border border-primary/30 rounded-xl hover:bg-primary/20 hover:border-primary/50 hover:shadow-glow-sm",
       },
       size: {
