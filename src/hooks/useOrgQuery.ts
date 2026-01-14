@@ -2,9 +2,10 @@ import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Database } from '@/integrations/supabase/types';
 
-type TableNames = keyof Database['public']['Tables'];
+// Use string type for table names to support dynamic tables
+// This allows the hook to work with tables not yet defined in types.ts
+type TableNames = string;
 
 interface OrgQueryOptions {
   select?: string;
@@ -14,6 +15,10 @@ interface OrgQueryOptions {
   limit?: number;
   skipOrgFilter?: boolean;
 }
+
+// Cast supabase to any to bypass strict typing with empty database
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 /**
  * Organization-aware query hook that automatically filters by organization_id
@@ -33,8 +38,7 @@ export function useOrgQuery<T = unknown>(
         throw new Error('Organisation non trouvée');
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let query: any = supabase.from(table).select(options?.select || '*');
+      let query = db.from(table).select(options?.select || '*');
       
       // Apply organization filter
       if (!options?.skipOrgFilter && table !== 'profiles' && table !== 'organizations') {
