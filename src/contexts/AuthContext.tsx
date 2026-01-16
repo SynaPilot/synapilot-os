@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
-          id: authData.user.id,
+          user_id: authData.user.id,
           organization_id: orgData.id,
           full_name: fullName
         });
@@ -124,7 +124,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('user_roles')
         .insert({
           user_id: authData.user.id,
-          role: 'Admin'
+          organization_id: orgData.id,
+          role: 'admin'
         });
 
       if (roleError) {
