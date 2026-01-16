@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 // Lazy load pages for code splitting
 const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const ContactDetail = lazy(() => import("./pages/ContactDetail"));
@@ -68,8 +69,9 @@ function AppRoutes() {
       {/* Root redirect based on auth state */}
       <Route path="/" element={<RootRedirect />} />
       
-      {/* Public route */}
+      {/* Public routes */}
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       
       {/* Protected routes - all wrapped with DashboardLayout via ProtectedRoute */}
       <Route path="/dashboard" element={

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -139,9 +139,15 @@ export default function Login() {
             </form>
           </Form>
           
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Accès sur invitation uniquement
-          </p>
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            Pas encore de compte ?{' '}
+            <Link 
+              to="/signup" 
+              className="text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Créer un compte
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
