@@ -923,7 +923,7 @@ export default function Activities() {
                 <ActivityItemSkeleton key={i} />
               ))}
             </div>
-          ) : filteredActivities?.length === 0 ? (
+          ) : !activities || activities.length === 0 ? (
             <EmptyState
               icon={CalendarIcon}
               iconGradient="from-purple-500/20 to-blue-500/20"
@@ -946,6 +946,18 @@ export default function Activities() {
               ]}
               className="py-8"
             />
+          ) : filteredActivities?.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <CalendarIcon className="w-12 h-12 text-muted-foreground/50 mb-4" />
+              <p className="text-muted-foreground">Aucune activité avec ce filtre</p>
+              <Button 
+                variant="link" 
+                onClick={() => setStatusFilter('all')}
+                className="text-purple-400 mt-2"
+              >
+                Voir toutes les activités
+              </Button>
+            </div>
           ) : (
             <div className="divide-y divide-white/5">
               {filteredActivities?.map((activity, index) => (
