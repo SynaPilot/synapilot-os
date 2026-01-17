@@ -169,7 +169,7 @@ export function SmartNotifications() {
     });
     
     // Completed activities (success)
-    const completedActivities = activities?.filter(a => a.status === 'Terminé').slice(0, 1) || [];
+    const completedActivities = activities?.filter(a => a.status === 'termine').slice(0, 1) || [];
     
     completedActivities.forEach(activity => {
       result.push({
@@ -177,7 +177,7 @@ export function SmartNotifications() {
         type: 'success',
         icon: <CheckCircle className="w-4 h-4 text-success" />,
         message: activity.type || 'Activité complétée',
-        description: activity.content || undefined,
+        description: activity.description || undefined,
         time: formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: fr }),
         route: '/activities'
       });
@@ -186,7 +186,7 @@ export function SmartNotifications() {
     // Overdue activities (error)
     const today = new Date().toISOString().split('T')[0];
     const overdueActivities = activities?.filter(a => 
-      a.date && a.date < today && a.status !== 'Terminé'
+      a.date && a.date < today && a.status !== 'termine'
     ) || [];
     
     if (overdueActivities.length > 0) {

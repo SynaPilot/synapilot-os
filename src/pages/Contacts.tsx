@@ -34,7 +34,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { PIPELINE_STAGES, PIPELINE_STAGE_LABELS, CONTACT_ROLES, type PipelineStage } from '@/lib/constants';
+import { PIPELINE_STAGES, PIPELINE_STAGE_LABELS, CONTACT_ROLES, CONTACT_ROLE_LABELS, type PipelineStage } from '@/lib/constants';
 import { formatRelativeTime } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
@@ -45,7 +45,7 @@ const contactSchema = z.object({
   full_name: z.string().min(2, 'Nom requis').max(100),
   email: z.string().email('Email invalide').optional().or(z.literal('')),
   phone: z.string().max(20).optional(),
-  role: z.enum(['Acheteur', 'Vendeur', 'Investisseur', 'Locataire']).optional(),
+  role: z.enum(['vendeur', 'acheteur', 'vendeur_acheteur', 'locataire', 'proprietaire', 'prospect', 'partenaire', 'notaire', 'banquier', 'autre']).optional(),
   urgency_score: z.number().min(0).max(10).default(0),
   source: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
@@ -126,8 +126,19 @@ function SortableContactCard({ contact, onNavigate }: { contact: Contact; onNavi
 function KanbanColumn({ stage, contacts, onNavigate }: { stage: PipelineStage; contacts: Contact[]; onNavigate: (id: string) => void }) {
   const getStageColor = (stage: PipelineStage) => {
     const colors: Record<PipelineStage, string> = {
-      lead: 'border-l-blue-500', contacted: 'border-l-purple-500', qualified: 'border-l-cyan-500',
-      proposal: 'border-l-orange-500', won: 'border-l-emerald-500', lost: 'border-l-red-500',
+      nouveau: 'border-l-blue-500',
+      qualification: 'border-l-purple-500',
+      estimation: 'border-l-cyan-500',
+      mandat: 'border-l-green-500',
+      commercialisation: 'border-l-yellow-500',
+      visite: 'border-l-orange-500',
+      offre: 'border-l-pink-500',
+      negociation: 'border-l-rose-500',
+      compromis: 'border-l-teal-500',
+      financement: 'border-l-indigo-500',
+      acte: 'border-l-lime-500',
+      vendu: 'border-l-emerald-500',
+      perdu: 'border-l-red-500',
     };
     return colors[stage];
   };
@@ -189,7 +200,7 @@ export default function Contacts() {
       const { error } = await supabase.from('contacts').insert({
         full_name: values.full_name, email: values.email || null, phone: values.phone || null,
         role: values.role || null, urgency_score: values.urgency_score, source: values.source || null,
-        notes: values.notes || null, organization_id: organizationId, pipeline_stage: 'lead',
+        notes: values.notes || null, organization_id: organizationId, pipeline_stage: 'nouveau',
       });
       if (error) throw error;
     },
