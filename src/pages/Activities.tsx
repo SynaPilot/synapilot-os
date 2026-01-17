@@ -64,7 +64,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { ACTIVITY_TYPES, ACTIVITY_STATUSES, ACTIVITY_PRIORITIES } from '@/lib/constants';
+import { ACTIVITY_TYPES, ACTIVITY_STATUSES, ACTIVITY_PRIORITIES, ACTIVITY_TYPE_LABELS, ACTIVITY_STATUS_LABELS, ACTIVITY_PRIORITY_LABELS } from '@/lib/constants';
 import { formatRelativeTime } from '@/lib/formatters';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -83,14 +83,14 @@ const activitySchema = z.object({
   name: z.string()
     .min(3, "Le titre doit contenir au moins 3 caractères")
     .max(100, "Le titre ne peut pas dépasser 100 caractères"),
-  type: z.enum(['Appel', 'Email', 'Visite', 'Relance', 'RDV', 'Administratif', 'Paiement']),
+  type: z.enum(['appel', 'email', 'visite', 'rdv', 'relance', 'signature', 'note', 'tache', 'autre']),
   date: z.date(),
   time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Format HH:mm requis"),
-  priority: z.enum(['Haute', 'Moyenne', 'Basse']),
-  status: z.enum(['À faire', 'En cours', 'Terminée']),
-  related_contact_id: z.string().uuid().nullable(),
-  related_property_id: z.string().uuid().nullable(),
-  content: z.string().max(500, "Maximum 500 caractères").optional(),
+  priority: z.enum(['basse', 'normale', 'haute', 'urgente']),
+  status: z.enum(['planifie', 'en_cours', 'termine', 'annule']),
+  contact_id: z.string().uuid().nullable(),
+  property_id: z.string().uuid().nullable(),
+  description: z.string().max(500, "Maximum 500 caractères").optional(),
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
@@ -100,35 +100,39 @@ const pageVariants = {
   animate: { opacity: 1, y: 0 },
 };
 
-function getActivityIcon(type: string) {
+function getActivityIcon(type: string | null) {
   const icons: Record<string, React.ElementType> = {
-    'Appel': Phone,
-    'Email': Mail,
-    'Visite': MapPin,
-    'Relance': RefreshCw,
-    'RDV': CalendarIcon,
-    'Administratif': FileText,
-    'Paiement': CreditCard,
+    'appel': Phone,
+    'email': Mail,
+    'visite': MapPin,
+    'relance': RefreshCw,
+    'rdv': CalendarIcon,
+    'signature': FileText,
+    'note': FileText,
+    'tache': CheckCircle2,
+    'autre': CalendarIcon,
   };
-  return icons[type] || CalendarIcon;
+  return icons[type || ''] || CalendarIcon;
 }
 
-function getPriorityColor(priority: string) {
+function getPriorityColor(priority: string | null) {
   const colors: Record<string, string> = {
-    'Haute': 'bg-red-500/20 text-red-400 border-red-500/30',
-    'Moyenne': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-    'Basse': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'urgente': 'bg-red-500/20 text-red-400 border-red-500/30',
+    'haute': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    'normale': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'basse': 'bg-green-500/20 text-green-400 border-green-500/30',
   };
-  return colors[priority] || 'bg-muted text-muted-foreground';
+  return colors[priority || ''] || 'bg-muted text-muted-foreground';
 }
 
-function getStatusColor(status: string) {
+function getStatusColor(status: string | null) {
   const colors: Record<string, string> = {
-    'À faire': 'bg-info/20 text-info border-info/30',
-    'En cours': 'bg-warning/20 text-warning border-warning/30',
-    'Terminée': 'bg-success/20 text-success border-success/30',
+    'planifie': 'bg-info/20 text-info border-info/30',
+    'en_cours': 'bg-warning/20 text-warning border-warning/30',
+    'termine': 'bg-success/20 text-success border-success/30',
+    'annule': 'bg-muted text-muted-foreground border-muted',
   };
-  return colors[status] || 'bg-muted text-muted-foreground';
+  return colors[status || ''] || 'bg-muted text-muted-foreground';
 }
 
 function ActivityItem({ 
@@ -141,7 +145,7 @@ function ActivityItem({
   index: number;
 }) {
   const Icon = getActivityIcon(activity.type);
-  const isCompleted = activity.status === 'Terminée';
+  const isCompleted = activity.status === 'termine';
 
   return (
     <motion.div
@@ -163,20 +167,20 @@ function ActivityItem({
           </h4>
           
           <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="outline" className="text-xs">{activity.type}</Badge>
+            <Badge variant="outline" className="text-xs">{ACTIVITY_TYPE_LABELS[activity.type as keyof typeof ACTIVITY_TYPE_LABELS] || activity.type}</Badge>
             {activity.priority && (
               <Badge className={`text-xs ${getPriorityColor(activity.priority)}`}>
-                {activity.priority}
+                {ACTIVITY_PRIORITY_LABELS[activity.priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || activity.priority}
               </Badge>
             )}
             <Badge className={`text-xs ${getStatusColor(activity.status || '')}`}>
-              {activity.status}
+              {ACTIVITY_STATUS_LABELS[activity.status as keyof typeof ACTIVITY_STATUS_LABELS] || activity.status}
             </Badge>
           </div>
           
-          {activity.content && (
+          {activity.description && (
             <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-              {activity.content}
+              {activity.description}
             </p>
           )}
           
@@ -239,14 +243,14 @@ export default function Activities() {
     resolver: zodResolver(activitySchema),
     defaultValues: {
       name: '',
-      type: 'Appel',
+      type: 'appel',
       date: now,
       time: currentTime,
-      priority: 'Moyenne',
-      status: 'À faire',
-      related_contact_id: null,
-      related_property_id: null,
-      content: '',
+      priority: 'normale',
+      status: 'planifie',
+      contact_id: null,
+      property_id: null,
+      description: '',
     },
   });
 
@@ -264,14 +268,14 @@ export default function Activities() {
       const newTime = `${String(newNow.getHours()).padStart(2, '0')}:${String(newNow.getMinutes()).padStart(2, '0')}`;
       form.reset({
         name: '',
-        type: 'Appel',
+        type: 'appel',
         date: newNow,
         time: newTime,
-        priority: 'Moyenne',
-        status: 'À faire',
-        related_contact_id: null,
-        related_property_id: null,
-        content: '',
+        priority: 'normale',
+        status: 'planifie',
+        contact_id: null,
+        property_id: null,
+        description: '',
       });
       setContactSearch('');
       setPropertySearch('');
@@ -279,7 +283,7 @@ export default function Activities() {
   }, [isDialogOpen, form]);
 
   const { data: activities, isLoading } = useOrgQuery<Activity[]>('activities', {
-    select: '*, contacts:related_contact_id(full_name), properties:related_property_id(address, type)',
+    select: '*, contacts:contact_id(full_name), properties:property_id(address, type)',
     orderBy: { column: 'date', ascending: false }
   });
 
@@ -316,19 +320,18 @@ export default function Activities() {
 
       const { error } = await supabase
         .from('activities')
-        .insert({
+        .insert([{
           organization_id: organizationId,
           name: values.name,
           type: values.type,
           date: dateTime.toISOString(),
           priority: values.priority,
           status: values.status,
-          content: values.content || null,
-          related_contact_id: values.related_contact_id || null,
-          related_property_id: values.related_property_id || null,
+          description: values.description || null,
+          contact_id: values.contact_id || null,
+          property_id: values.property_id || null,
           assigned_to: user?.id || null,
-          created_by: user?.id || null,
-        });
+        }]);
 
       if (error) throw error;
     },
@@ -348,7 +351,7 @@ export default function Activities() {
       
       const { error } = await supabase
         .from('activities')
-        .update({ status: 'Terminée' })
+        .update({ status: 'termine' })
         .eq('id', id)
         .eq('organization_id', organizationId);
 
@@ -365,14 +368,14 @@ export default function Activities() {
     return a.status === statusFilter;
   });
 
-  const todoCount = activities?.filter((a) => a.status === 'À faire').length || 0;
+  const todoCount = activities?.filter((a) => a.status === 'planifie').length || 0;
   const completedToday = activities?.filter((a) => {
     const today = new Date().toDateString();
-    return a.status === 'Terminée' && a.date && new Date(a.date).toDateString() === today;
+    return a.status === 'termine' && a.date && new Date(a.date).toDateString() === today;
   }).length || 0;
 
-  const selectedContact = contacts?.find(c => c.id === form.watch('related_contact_id'));
-  const selectedProperty = properties?.find(p => p.id === form.watch('related_property_id'));
+  const selectedContact = contacts?.find(c => c.id === form.watch('contact_id'));
+  const selectedProperty = properties?.find(p => p.id === form.watch('property_id'));
 
   return (
     <motion.div 
@@ -590,7 +593,7 @@ export default function Activities() {
                 {/* 6. Related Contact */}
                 <FormField
                   control={form.control}
-                  name="related_contact_id"
+                  name="contact_id"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel className="text-sm font-medium text-white">
@@ -675,7 +678,7 @@ export default function Activities() {
                 {/* 7. Related Property */}
                 <FormField
                   control={form.control}
-                  name="related_property_id"
+                  name="property_id"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel className="text-sm font-medium text-white">
@@ -760,7 +763,7 @@ export default function Activities() {
                 {/* 8. Description */}
                 <FormField
                   control={form.control}
-                  name="content"
+                  name="description"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-medium text-white">
@@ -769,6 +772,7 @@ export default function Activities() {
                       <FormControl>
                         <Textarea 
                           {...field} 
+                          value={field.value || ''}
                           placeholder="Notes ou détails supplémentaires..." 
                           rows={4}
                           className="resize-none focus:ring-2 focus:ring-primary"
@@ -776,7 +780,7 @@ export default function Activities() {
                       </FormControl>
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <FormMessage className="text-red-400" />
-                        <span>{field.value?.length || 0}/500</span>
+                        <span>{(field.value || '').length}/500</span>
                       </div>
                     </FormItem>
                   )}

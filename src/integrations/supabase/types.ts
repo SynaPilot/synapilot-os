@@ -569,6 +569,7 @@ export type Database = {
           surface: number | null
           title: string
           total_floors: number | null
+          transaction_type: string | null
           type: Database["public"]["Enums"]["property_type"] | null
           updated_at: string
           year_built: number | null
@@ -595,6 +596,7 @@ export type Database = {
           surface?: number | null
           title: string
           total_floors?: number | null
+          transaction_type?: string | null
           type?: Database["public"]["Enums"]["property_type"] | null
           updated_at?: string
           year_built?: number | null
@@ -621,6 +623,7 @@ export type Database = {
           surface?: number | null
           title?: string
           total_floors?: number | null
+          transaction_type?: string | null
           type?: Database["public"]["Enums"]["property_type"] | null
           updated_at?: string
           year_built?: number | null

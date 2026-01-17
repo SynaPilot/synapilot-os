@@ -59,8 +59,8 @@ const quickDealSchema = z.object({
 });
 
 const quickActivitySchema = z.object({
-  type: z.enum(['Call', 'SMS', 'Email', 'Meeting', 'Visite', 'Relance']),
-  content: z.string().min(2, 'Contenu requis'),
+  type: z.enum(['appel', 'email', 'visite', 'rdv', 'relance', 'signature', 'note', 'tache', 'autre']),
+  description: z.string().min(2, 'Description requise'),
 });
 
 type QuickContactValues = z.infer<typeof quickContactSchema>;
@@ -101,20 +101,20 @@ export function CommandMenu() {
 
   const activityForm = useForm<QuickActivityValues>({
     resolver: zodResolver(quickActivitySchema),
-    defaultValues: { type: 'Call', content: '' },
+    defaultValues: { type: 'appel', description: '' },
   });
 
   // Mutations
   const createContactMutation = useMutation({
     mutationFn: async (values: QuickContactValues) => {
       if (!profile?.organization_id) throw new Error('Organisation non trouvée');
-      const { error } = await supabase.from('contacts').insert({
+      const { error } = await supabase.from('contacts').insert([{
         full_name: values.full_name,
         email: values.email || null,
         phone: values.phone || null,
         organization_id: profile.organization_id,
-        pipeline_stage: 'lead',
-      });
+        pipeline_stage: 'nouveau',
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -149,12 +149,14 @@ export function CommandMenu() {
   const createActivityMutation = useMutation({
     mutationFn: async (values: QuickActivityValues) => {
       if (!profile?.organization_id) throw new Error('Organisation non trouvée');
-      const { error } = await supabase.from('activities').insert({
+      const { error } = await supabase.from('activities').insert([{
+        name: values.description.slice(0, 100),
         type: values.type,
-        content: values.content,
+        description: values.description,
         organization_id: profile.organization_id,
-        status: 'À faire',
-      });
+        status: 'planifie',
+        date: new Date().toISOString(),
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -366,10 +368,10 @@ export function CommandMenu() {
               />
               <FormField
                 control={activityForm.control}
-                name="content"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contenu *</FormLabel>
+                    <FormLabel>Description *</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Description de l'activité..." {...field} rows={3} />
                     </FormControl>

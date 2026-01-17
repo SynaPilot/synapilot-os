@@ -125,7 +125,7 @@ export function SmartActions() {
     const coldContacts = contacts?.filter(c => {
       if (!c.updated_at) return false;
       const daysSince = differenceInDays(new Date(), new Date(c.updated_at));
-      return daysSince >= 10 && c.pipeline_stage !== 'won' && c.pipeline_stage !== 'lost';
+      return daysSince >= 10 && c.pipeline_stage !== 'vendu' && c.pipeline_stage !== 'perdu';
     }) || [];
     
     if (coldContacts.length > 0) {
@@ -163,7 +163,7 @@ export function SmartActions() {
     
     // Today's activities
     const today = new Date().toISOString().split('T')[0];
-    const todayActivities = activities?.filter(a => a.date?.startsWith(today) && a.status !== 'Terminé') || [];
+    const todayActivities = activities?.filter(a => a.date?.startsWith(today) && a.status !== 'termine') || [];
     
     if (todayActivities.length > 0) {
       const nextActivity = todayActivities[0];
@@ -172,7 +172,7 @@ export function SmartActions() {
         priority: 'urgent',
         icon: <Calendar className="w-4 h-4 text-error" />,
         title: `${todayActivities.length} activité${todayActivities.length > 1 ? 's' : ''} aujourd'hui`,
-        description: nextActivity.content || 'Activité à préparer',
+        description: nextActivity.description || nextActivity.name || 'Activité à préparer',
         actionLabel: 'Préparer',
         route: '/activities'
       });
@@ -180,7 +180,7 @@ export function SmartActions() {
     
     // Low urgency contacts that need attention
     const lowUrgencyContacts = contacts?.filter(c => 
-      (c.urgency_score || 0) >= 8 && c.pipeline_stage === 'lead'
+      (c.urgency_score || 0) >= 8 && c.pipeline_stage === 'nouveau'
     ) || [];
     
     if (lowUrgencyContacts.length > 0) {

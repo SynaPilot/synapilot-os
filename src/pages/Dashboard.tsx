@@ -77,7 +77,7 @@ export default function Dashboard() {
   const revenue = deals?.filter(d => d.stage === 'vendu').reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
   const commissions = deals?.filter(d => d.stage === 'vendu').reduce((sum, d) => sum + (d.commission_amount || 0), 0) || 0;
   const activeDeals = deals?.filter(d => d.stage !== 'vendu' && d.stage !== 'perdu').length || 0;
-  const activeLeads = contacts?.filter(c => c.pipeline_stage !== 'won' && c.pipeline_stage !== 'lost').length || 0;
+  const activeLeads = contacts?.filter(c => c.pipeline_stage !== 'vendu' && c.pipeline_stage !== 'perdu').length || 0;
   
   const today = new Date().toISOString().split('T')[0];
   const todayActivities = activities?.filter(a => a.date?.startsWith(today)).length || 0;
@@ -118,7 +118,7 @@ export default function Dashboard() {
   }, [activities]);
 
   // Urgent leads (high score, new stage)
-  const urgentLeads = contacts?.filter(c => (c.urgency_score || 0) >= 7 && c.pipeline_stage === 'lead').slice(0, 5) || [];
+  const urgentLeads = contacts?.filter(c => (c.urgency_score || 0) >= 7 && c.pipeline_stage === 'nouveau').slice(0, 5) || [];
 
   const isLoading = dealsLoading || contactsLoading || activitiesLoading;
   const hasNoData = !deals?.length && !contacts?.length && !activities?.length;
@@ -405,7 +405,7 @@ export default function Dashboard() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">
-                                  {activity.content || activity.type}
+                                  {activity.description || activity.name || activity.type}
                                 </p>
                                 <p className="text-xs text-muted-foreground font-mono">
                                   {activity.contacts?.full_name && `${activity.contacts.full_name} • `}

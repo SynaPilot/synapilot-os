@@ -163,12 +163,16 @@ function KanbanColumn({
   const getStageColor = (stage: DealStage) => {
     const colors: Record<DealStage, string> = {
       nouveau: 'border-l-blue-500',
+      qualification: 'border-l-slate-500',
       estimation: 'border-l-purple-500',
       mandat: 'border-l-green-500',
+      commercialisation: 'border-l-sky-500',
       visite: 'border-l-cyan-500',
       offre: 'border-l-yellow-500',
       negociation: 'border-l-orange-500',
       compromis: 'border-l-pink-500',
+      financement: 'border-l-indigo-500',
+      acte: 'border-l-lime-500',
       vendu: 'border-l-emerald-500',
       perdu: 'border-l-red-500',
     };

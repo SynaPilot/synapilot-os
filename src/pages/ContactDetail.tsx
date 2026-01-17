@@ -81,8 +81,8 @@ const pageVariants = {
 };
 
 const activitySchema = z.object({
-  type: z.enum(['Call', 'SMS', 'Email', 'Meeting', 'Visite', 'Relance']),
-  content: z.string().min(1, 'Contenu requis').max(1000),
+  type: z.enum(['appel', 'email', 'visite', 'rdv', 'relance', 'signature', 'note', 'tache', 'autre']),
+  description: z.string().min(1, 'Description requise').max(1000),
   date: z.string().optional(),
 });
 
@@ -177,8 +177,8 @@ export default function ContactDetail() {
   const activityForm = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
     defaultValues: {
-      type: 'Call',
-      content: '',
+      type: 'appel',
+      description: '',
       date: new Date().toISOString().split('T')[0],
     },
   });
@@ -187,14 +187,15 @@ export default function ContactDetail() {
   const createActivityMutation = useMutation({
     mutationFn: async (values: ActivityFormValues) => {
       if (!organizationId || !id) throw new Error('Organisation non trouvée');
-      const { error } = await supabase.from('activities').insert({
+      const { error } = await supabase.from('activities').insert([{
+        name: values.description.slice(0, 100),
         type: values.type,
-        content: values.content,
+        description: values.description,
         date: values.date || new Date().toISOString(),
-        related_contact_id: id,
+        contact_id: id,
         organization_id: organizationId,
-        status: 'Terminé',
-      });
+        status: 'termine',
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -559,7 +560,7 @@ export default function ContactDetail() {
                       />
                       <FormField
                         control={activityForm.control}
-                        name="content"
+                        name="description"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Description</FormLabel>
@@ -630,7 +631,7 @@ export default function ContactDetail() {
                             {activity.date ? formatRelativeTime(activity.date) : ''}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{activity.content}</p>
+                        <p className="text-sm text-muted-foreground">{activity.description}</p>
                       </div>
                     </motion.div>
                   ))}

@@ -88,12 +88,12 @@ export default function Stats() {
       const { count: newContacts } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
-        .eq('pipeline_stage', 'lead');
+        .eq('pipeline_stage', 'nouveau');
 
       const { count: wonContacts } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
-        .eq('pipeline_stage', 'won');
+        .eq('pipeline_stage', 'vendu');
 
       // Properties stats
       const { count: totalProperties } = await supabase
@@ -103,12 +103,12 @@ export default function Stats() {
       const { count: activeProperties } = await supabase
         .from('properties')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['Mandat', 'Sous Offre']);
+        .in('status', ['disponible', 'sous_compromis']);
 
       const { count: soldProperties } = await supabase
         .from('properties')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'Vendu');
+        .eq('status', 'vendu');
 
       // Activities stats
       const { count: totalActivities } = await supabase
@@ -118,7 +118,7 @@ export default function Stats() {
       const { count: completedActivities } = await supabase
         .from('activities')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'Terminé');
+        .eq('status', 'termine');
 
       // Calculate conversion rate
       const conversionRate = totalContacts && wonContacts 

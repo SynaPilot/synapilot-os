@@ -43,17 +43,17 @@ import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { PROPERTY_TYPES, PROPERTY_STATUSES } from '@/lib/constants';
+import { PROPERTY_TYPES, PROPERTY_STATUSES, PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS } from '@/lib/constants';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Property = Tables<'properties'>;
 
 const propertySchema = z.object({
-  address: z.string().min(5, 'Adresse requise').max(255),
-  type: z.enum(['Appartement', 'Maison', 'Terrain', 'Commerce', 'Immeuble']),
+  title: z.string().min(5, 'Titre requis').max(255),
+  type: z.enum(['appartement', 'maison', 'terrain', 'commerce', 'bureau', 'immeuble', 'parking', 'autre']),
   price: z.number().min(0).optional(),
-  surface_m2: z.number().min(0).optional(),
+  surface: z.number().min(0).optional(),
   rooms: z.number().min(0).optional(),
   bedrooms: z.number().min(0).optional(),
   description: z.string().max(2000).optional(),
@@ -69,11 +69,11 @@ const pageVariants = {
 function PropertyCard({ property, index }: { property: Property; index: number }) {
   const getStatusColor = (status: string | null) => {
     const colors: Record<string, string> = {
-      'Estimation': 'bg-info/20 text-info border-info/30',
-      'Mandat': 'bg-success/20 text-success border-success/30',
-      'Sous Offre': 'bg-warning/20 text-warning border-warning/30',
-      'Vendu': 'bg-primary/20 text-primary border-primary/30',
-      'Archivé': 'bg-muted text-muted-foreground border-muted',
+      'disponible': 'bg-info/20 text-info border-info/30',
+      'sous_compromis': 'bg-warning/20 text-warning border-warning/30',
+      'vendu': 'bg-success/20 text-success border-success/30',
+      'loue': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      'retire': 'bg-muted text-muted-foreground border-muted',
     };
     return colors[status || ''] || 'bg-muted text-muted-foreground';
   };
@@ -92,19 +92,19 @@ function PropertyCard({ property, index }: { property: Property; index: number }
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">
             <Badge className={`text-xs ${getStatusColor(property.status)}`}>
-              {property.status}
+              {PROPERTY_STATUS_LABELS[property.status as keyof typeof PROPERTY_STATUS_LABELS] || property.status}
             </Badge>
-            {property.type && <Badge variant="outline" className="text-xs">{property.type}</Badge>}
+            {property.type && <Badge variant="outline" className="text-xs">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}</Badge>}
           </div>
-          <p className="font-medium text-sm line-clamp-2 mb-2">{property.address}</p>
+          <p className="font-medium text-sm line-clamp-2 mb-2">{property.title}</p>
           <p className="text-lg font-semibold text-primary mb-3">
             {property.price ? formatCurrency(property.price) : 'Prix non défini'}
           </p>
           <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
-            {property.surface_m2 && (
+            {property.surface && (
               <span className="flex items-center gap-1">
                 <Square className="w-3 h-3" />
-                {formatNumber(property.surface_m2)} m²
+                {formatNumber(property.surface)} m²
               </span>
             )}
             {property.rooms && (
@@ -140,10 +140,10 @@ export default function Properties() {
   const form = useForm<PropertyFormValues>({
     resolver: zodResolver(propertySchema),
     defaultValues: {
-      address: '',
-      type: 'Appartement',
+      title: '',
+      type: 'appartement',
       price: undefined,
-      surface_m2: undefined,
+      surface: undefined,
       rooms: undefined,
       bedrooms: undefined,
       description: '',
@@ -161,17 +161,17 @@ export default function Properties() {
       
       const { error } = await supabase
         .from('properties')
-        .insert({
-          address: values.address,
+        .insert([{
+          title: values.title,
           type: values.type,
           price: values.price || null,
-          surface_m2: values.surface_m2 || null,
+          surface: values.surface || null,
           rooms: values.rooms || null,
           bedrooms: values.bedrooms || null,
           description: values.description || null,
           organization_id: organizationId,
-          status: 'Estimation',
-        });
+          status: 'disponible',
+        }]);
 
       if (error) throw error;
     },
@@ -187,7 +187,8 @@ export default function Properties() {
   });
 
   const filteredProperties = properties?.filter((p) => {
-    const matchesSearch = p.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (p.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                          (p.address?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -221,12 +222,12 @@ export default function Properties() {
                 <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="address"
+                    name="title"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Adresse *</FormLabel>
+                        <FormLabel>Titre <span className="text-red-500">*</span></FormLabel>
                         <FormControl>
-                          <Input placeholder="123 rue de la Paix, Paris" {...field} />
+                          <Input placeholder="Appartement T3 centre-ville" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -238,7 +239,7 @@ export default function Properties() {
                       name="type"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Type *</FormLabel>
+                          <FormLabel>Type <span className="text-red-500">*</span></FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
@@ -247,7 +248,7 @@ export default function Properties() {
                             </FormControl>
                             <SelectContent>
                               {PROPERTY_TYPES.map((type) => (
-                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                                <SelectItem key={type} value={type}>{PROPERTY_TYPE_LABELS[type]}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -277,10 +278,10 @@ export default function Properties() {
                   <div className="grid grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
-                      name="surface_m2"
+                      name="surface"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Surface</FormLabel>
+                          <FormLabel>Surface (m²)</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -371,7 +372,7 @@ export default function Properties() {
             <SelectContent>
               <SelectItem value="all">Tous les statuts</SelectItem>
               {PROPERTY_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>{status}</SelectItem>
+                <SelectItem key={status} value={status}>{PROPERTY_STATUS_LABELS[status]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
