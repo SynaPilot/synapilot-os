@@ -43,20 +43,26 @@ import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { PROPERTY_TYPES, PROPERTY_STATUSES, PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS } from '@/lib/constants';
+import { PROPERTY_TYPES, PROPERTY_STATUSES, PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS } from '@/lib/constants';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Property = Tables<'properties'>;
+type Contact = Tables<'contacts'>;
+type Profile = Tables<'profiles'>;
 
 const propertySchema = z.object({
-  title: z.string().min(5, 'Titre requis').max(255),
+  title: z.string().min(5, 'Titre requis (min 5 caractères)').max(255),
   type: z.enum(['appartement', 'maison', 'terrain', 'commerce', 'bureau', 'immeuble', 'parking', 'autre']),
-  price: z.number().min(0).optional(),
-  surface: z.number().min(0).optional(),
-  rooms: z.number().min(0).optional(),
-  bedrooms: z.number().min(0).optional(),
-  description: z.string().max(2000).optional(),
+  status: z.enum(['disponible', 'sous_compromis', 'vendu', 'loue', 'retire']),
+  transaction_type: z.enum(['vente', 'location', 'viager']),
+  price: z.number().min(0, 'Prix invalide').optional(),
+  surface: z.number().min(0).optional().nullable(),
+  rooms: z.number().min(0).optional().nullable(),
+  bedrooms: z.number().min(0).optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+  description: z.string().max(2000, 'Description trop longue (max 2000 caractères)').optional(),
 });
 
 type PropertyFormValues = z.infer<typeof propertySchema>;
@@ -66,16 +72,17 @@ const pageVariants = {
   animate: { opacity: 1, y: 0 },
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  'disponible': 'bg-info/20 text-info border-info/30',
+  'sous_compromis': 'bg-warning/20 text-warning border-warning/30',
+  'vendu': 'bg-success/20 text-success border-success/30',
+  'loue': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  'retire': 'bg-muted text-muted-foreground border-muted',
+};
+
 function PropertyCard({ property, index }: { property: Property; index: number }) {
   const getStatusColor = (status: string | null) => {
-    const colors: Record<string, string> = {
-      'disponible': 'bg-info/20 text-info border-info/30',
-      'sous_compromis': 'bg-warning/20 text-warning border-warning/30',
-      'vendu': 'bg-success/20 text-success border-success/30',
-      'loue': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      'retire': 'bg-muted text-muted-foreground border-muted',
-    };
-    return colors[status || ''] || 'bg-muted text-muted-foreground';
+    return STATUS_COLORS[status || ''] || 'bg-muted text-muted-foreground';
   };
 
   return (
@@ -131,7 +138,7 @@ export default function Properties() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { organizationId } = useAuth();
+  const { organizationId, user } = useAuth();
 
   const propertiesQueryKey = organizationId 
     ? (['properties', organizationId] as const) 
@@ -142,19 +149,37 @@ export default function Properties() {
     defaultValues: {
       title: '',
       type: 'appartement',
+      status: 'disponible',
+      transaction_type: 'vente',
       price: undefined,
-      surface: undefined,
-      rooms: undefined,
-      bedrooms: undefined,
+      surface: null,
+      rooms: null,
+      bedrooms: null,
+      contact_id: null,
+      assigned_to: user?.id || null,
       description: '',
     },
   });
+
+  const descriptionValue = form.watch('description') || '';
 
   const { data: properties, isLoading } = useOrgQuery<Property[]>('properties', {
     select: '*',
     orderBy: { column: 'created_at', ascending: false }
   });
 
+  // Fetch contacts with role 'vendeur' for owner selection
+  const { data: vendeurs } = useOrgQuery<Contact[]>('contacts', {
+    select: 'id, full_name, email',
+    filters: { role: 'vendeur' },
+    orderBy: { column: 'full_name', ascending: true }
+  });
+
+  // Fetch profiles for agent assignment
+  const { data: profiles } = useOrgQuery<Profile[]>('profiles', {
+    select: 'id, full_name, email',
+    orderBy: { column: 'full_name', ascending: true }
+  });
   const createMutation = useMutation({
     mutationFn: async (values: PropertyFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
@@ -164,13 +189,16 @@ export default function Properties() {
         .insert([{
           title: values.title,
           type: values.type,
+          status: values.status,
+          transaction_type: values.transaction_type,
           price: values.price || null,
           surface: values.surface || null,
           rooms: values.rooms || null,
           bedrooms: values.bedrooms || null,
+          contact_id: values.contact_id || null,
+          assigned_to: values.assigned_to || null,
           description: values.description || null,
           organization_id: organizationId,
-          status: 'disponible',
         }]);
 
       if (error) throw error;
@@ -178,11 +206,25 @@ export default function Properties() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
       setIsDialogOpen(false);
-      form.reset();
+      form.reset({
+        title: '',
+        type: 'appartement',
+        status: 'disponible',
+        transaction_type: 'vente',
+        price: undefined,
+        surface: null,
+        rooms: null,
+        bedrooms: null,
+        contact_id: null,
+        assigned_to: user?.id || null,
+        description: '',
+      });
       toast.success('Bien créé avec succès');
     },
     onError: (error) => {
-      toast.error(`Erreur: ${error.message}`);
+      toast.error('Erreur lors de la création', {
+        description: error.message,
+      });
     },
   });
 
@@ -214,18 +256,19 @@ export default function Properties() {
                 Nouveau bien
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Ajouter un bien</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
+                <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-6">
+                  {/* Title */}
                   <FormField
                     control={form.control}
                     name="title"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Titre <span className="text-red-500">*</span></FormLabel>
+                        <FormLabel>Titre <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
                           <Input placeholder="Appartement T3 centre-ville" {...field} />
                         </FormControl>
@@ -233,62 +276,125 @@ export default function Properties() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Type <span className="text-red-500">*</span></FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {PROPERTY_TYPES.map((type) => (
-                                <SelectItem key={type} value={type}>{PROPERTY_TYPE_LABELS[type]}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="price"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Prix (€)</FormLabel>
+
+                  {/* Type */}
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="350000"
-                              {...field} 
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
-                            />
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
+                          <SelectContent>
+                            {PROPERTY_TYPES.map((type) => (
+                              <SelectItem key={type} value={type}>{PROPERTY_TYPE_LABELS[type]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Status with colored badges */}
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Statut <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {PROPERTY_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[status]?.split(' ')[0] || 'bg-muted'}`} />
+                                  {PROPERTY_STATUS_LABELS[status]}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Transaction Type */}
+                  <FormField
+                    control={form.control}
+                    name="transaction_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type de transaction <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TRANSACTION_TYPES.map((type) => (
+                              <SelectItem key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Price */}
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Prix (€) <span className="text-destructive">*</span></FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="350000"
+                            {...field} 
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Surface & Rooms - 2 columns */}
+                  <div className="grid grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="surface"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Surface (m²)</FormLabel>
+                          <FormLabel>Surface</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="75"
-                              {...field} 
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
-                            />
+                            <div className="relative">
+                              <Input 
+                                type="number" 
+                                placeholder="75"
+                                {...field} 
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                className="pr-10"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">m²</span>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -305,25 +411,8 @@ export default function Properties() {
                               type="number" 
                               placeholder="4"
                               {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="bedrooms"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Chambres</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="2"
-                              {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -331,19 +420,111 @@ export default function Properties() {
                       )}
                     />
                   </div>
+
+                  {/* Bedrooms */}
                   <FormField
                     control={form.control}
-                    name="description"
+                    name="bedrooms"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>Chambres</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Description..." {...field} rows={3} />
+                          <Input 
+                            type="number" 
+                            placeholder="2"
+                            {...field} 
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  {/* Owner (contact_id) - Searchable select of contacts with role='vendeur' */}
+                  <FormField
+                    control={form.control}
+                    name="contact_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Propriétaire</FormLabel>
+                        <Select onValueChange={(val) => field.onChange(val === 'none' ? null : val)} value={field.value || 'none'}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un propriétaire" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Aucun</SelectItem>
+                            {vendeurs?.map((contact) => (
+                              <SelectItem key={contact.id} value={contact.id}>
+                                <div className="flex flex-col">
+                                  <span>{contact.full_name}</span>
+                                  {contact.email && <span className="text-xs text-muted-foreground">{contact.email}</span>}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Assigned Agent */}
+                  <FormField
+                    control={form.control}
+                    name="assigned_to"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Agent assigné</FormLabel>
+                        <Select onValueChange={(val) => field.onChange(val === 'none' ? null : val)} value={field.value || 'none'}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un agent" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Aucun</SelectItem>
+                            {profiles?.map((profile) => (
+                              <SelectItem key={profile.id} value={profile.id}>
+                                {profile.full_name || profile.email || 'Agent'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Description with character counter */}
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Description</FormLabel>
+                          <span className="text-xs text-muted-foreground">
+                            {descriptionValue.length}/2000
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Description détaillée du bien..." 
+                            {...field} 
+                            value={field.value || ''}
+                            rows={6}
+                            maxLength={2000}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                     {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {createMutation.isPending ? 'Création...' : 'Créer le bien'}
