@@ -926,7 +926,7 @@ export default function Activities() {
           ) : filteredActivities?.length === 0 ? (
             <EmptyState
               icon={CalendarIcon}
-              iconGradient="from-blue-500/20 to-purple-500/20"
+              iconGradient="from-purple-500/20 to-blue-500/20"
               title="Organisez votre journée"
               description="Créez des tâches, planifiez des visites et suivez vos relances. Toutes vos activités au même endroit."
               action={{
@@ -940,9 +940,9 @@ export default function Activities() {
                 icon: <Play className="w-5 h-5" />
               }}
               features={[
-                { icon: <Phone className="w-5 h-5 text-primary" />, title: "Relances", desc: "Programmez des rappels automatiques" },
-                { icon: <Home className="w-5 h-5 text-primary" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain" },
-                { icon: <Mail className="w-5 h-5 text-primary" />, title: "Emails", desc: "Suivez vos échanges clients" }
+                { icon: <Phone className="w-6 h-6 text-purple-400" />, title: "Relances", desc: "Programmez des rappels automatiques", iconBgClass: "bg-purple-500/20" },
+                { icon: <Home className="w-6 h-6 text-blue-400" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain", iconBgClass: "bg-blue-500/20" },
+                { icon: <Mail className="w-6 h-6 text-purple-400" />, title: "Emails", desc: "Suivez vos échanges clients", iconBgClass: "bg-purple-500/20" }
               ]}
               className="py-8"
             />
