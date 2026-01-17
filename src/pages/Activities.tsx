@@ -58,7 +58,9 @@ import {
   ChevronsUpDown,
   User,
   Building2,
-  Clock
+  Clock,
+  Edit3,
+  MessageSquare
 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
@@ -115,24 +117,41 @@ function getActivityIcon(type: string | null) {
   return icons[type || ''] || CalendarIcon;
 }
 
+// Premium color palette - strict blue/purple branding
 function getPriorityColor(priority: string | null) {
   const colors: Record<string, string> = {
-    'urgente': 'bg-red-500/20 text-red-400 border-red-500/30',
-    'haute': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    'urgente': 'bg-purple-600/20 text-purple-300 border-purple-600/30',
+    'haute': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
     'normale': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'basse': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'basse': 'bg-blue-400/20 text-blue-300 border-blue-400/30',
   };
   return colors[priority || ''] || 'bg-muted text-muted-foreground';
 }
 
 function getStatusColor(status: string | null) {
   const colors: Record<string, string> = {
-    'planifie': 'bg-info/20 text-info border-info/30',
-    'en_cours': 'bg-warning/20 text-warning border-warning/30',
-    'termine': 'bg-success/20 text-success border-success/30',
-    'annule': 'bg-muted text-muted-foreground border-muted',
+    'planifie': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    'en_cours': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'termine': 'bg-blue-700/30 text-blue-200 border-blue-700/40',
+    'annule': 'bg-gray-600/20 text-gray-400 border-gray-600/30',
   };
   return colors[status || ''] || 'bg-muted text-muted-foreground';
+}
+
+// Type icons with color dots - strict blue/purple
+function getActivityTypeIcon(type: string | null) {
+  const config: Record<string, { icon: React.ElementType; dotColor: string }> = {
+    'appel': { icon: Phone, dotColor: 'bg-purple-400' },
+    'email': { icon: Mail, dotColor: 'bg-blue-400' },
+    'visite': { icon: MapPin, dotColor: 'bg-purple-600' },
+    'relance': { icon: RefreshCw, dotColor: 'bg-blue-600' },
+    'rdv': { icon: CalendarIcon, dotColor: 'bg-purple-500' },
+    'signature': { icon: FileText, dotColor: 'bg-blue-500' },
+    'note': { icon: FileText, dotColor: 'bg-purple-400' },
+    'tache': { icon: CheckCircle2, dotColor: 'bg-blue-400' },
+    'autre': { icon: CalendarIcon, dotColor: 'bg-gray-400' },
+  };
+  return config[type || ''] || { icon: CalendarIcon, dotColor: 'bg-gray-400' };
 }
 
 function ActivityItem({ 
@@ -400,401 +419,481 @@ export default function Activities() {
               Nouvelle activité
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Créer une activité</DialogTitle>
-              <DialogDescription>
-                Planifiez une nouvelle tâche ou un rendez-vous
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 backdrop-blur-xl shadow-2xl shadow-black/50 border-white/10 rounded-xl">
+            {/* Premium Header with gradient */}
+            <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-8 pb-6 border-b border-white/10">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-semibold text-white flex items-center gap-3 antialiased">
+                  <CalendarIcon className="w-6 h-6 text-purple-400" />
+                  Créer une activité
+                </DialogTitle>
+                <DialogDescription className="text-white/60 font-[Poppins]">
+                  Planifiez une nouvelle tâche ou un rendez-vous
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            
             <Form {...form}>
-              <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-6">
-                {/* 1. Name */}
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-white">
-                        Nom de l'activité <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          ref={nameInputRef}
-                          placeholder="Ex: Relancer Marie Martin" 
-                          className="focus:ring-2 focus:ring-primary"
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 2. Type */}
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-white">
-                        Type <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {ACTIVITY_TYPES.map((type) => {
-                            const Icon = getActivityIcon(type);
-                            return (
-                              <SelectItem key={type} value={type}>
-                                <div className="flex items-center gap-2">
-                                  <Icon className="w-4 h-4 text-primary" />
-                                  {type}
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 3. Date and Time */}
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="p-8 space-y-8">
+                
+                {/* SECTION 1: Détails de l'activité */}
+                <div className="border-l-2 border-purple-500/50 pl-4 bg-purple-500/5 rounded-r-xl py-4 pr-4 space-y-6">
+                  <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-4">
+                    Détails de l'activité
+                  </h3>
+                  
+                  {/* Name Field */}
                   <FormField
                     control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel className="text-sm font-medium text-white">
-                          Date <span className="text-red-500">*</span>
-                        </FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "EEE d MMM yyyy", { locale: fr })
-                                ) : (
-                                  <span>Choisir une date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              locale={fr}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage className="text-red-400" />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="time"
+                    name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium text-white">
-                          Heure <span className="text-red-500">*</span>
+                        <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Edit3 className="w-4 h-4 text-purple-400" />
+                          Nom de l'activité <span className="text-purple-400">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
-                            type="time" 
-                            className="focus:ring-2 focus:ring-primary"
+                            ref={nameInputRef}
+                            placeholder="Ex: Relancer Marie Martin" 
+                            className="text-lg bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 focus:shadow-lg focus:shadow-purple-500/20 transition-all duration-200 rounded-xl text-white placeholder:text-white/40"
                           />
                         </FormControl>
-                        <FormMessage className="text-red-400" />
+                        <FormMessage className="text-purple-400 bg-purple-500/10 px-2 py-1 rounded" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Type Field */}
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-semibold text-white">
+                          Type <span className="text-purple-400">*</span>
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-[#1a1a1a] border-white/20">
+                            {ACTIVITY_TYPES.map((type) => {
+                              const { icon: TypeIcon, dotColor } = getActivityTypeIcon(type);
+                              return (
+                                <SelectItem key={type} value={type} className="focus:bg-purple-500/20">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                    <TypeIcon className="w-4 h-4 text-purple-400" />
+                                    <span>{ACTIVITY_TYPE_LABELS[type as keyof typeof ACTIVITY_TYPE_LABELS] || type}</span>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="text-purple-400" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Date and Time */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => {
+                        const isRdv = form.watch('type') === 'rdv';
+                        return (
+                          <FormItem className="flex flex-col">
+                            <FormLabel className={cn(
+                              "text-sm font-semibold flex items-center gap-2",
+                              isRdv ? "text-purple-400 font-bold" : "text-white"
+                            )}>
+                              <Clock className="w-4 h-4 text-blue-400" />
+                              Date <span className="text-purple-400">*</span>
+                            </FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "pl-3 text-left font-normal bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white",
+                                      !field.value && "text-white/40"
+                                    )}
+                                  >
+                                    {field.value ? (
+                                      format(field.value, "EEE d MMM yyyy", { locale: fr })
+                                    ) : (
+                                      <span>Choisir une date</span>
+                                    )}
+                                    <CalendarIcon className="ml-auto h-4 w-4 text-blue-400" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0 bg-[#1a1a1a] border border-gradient-to-r from-purple-500/30 to-blue-500/30" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                  locale={fr}
+                                  initialFocus
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage className="text-purple-400" />
+                          </FormItem>
+                        );
+                      }}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="time"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-blue-400" />
+                            Heure <span className="text-purple-400">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              type="time" 
+                              className="bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-purple-400" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* SECTION 2: Priorité & Statut */}
+                <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-6">
+                  <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-4">
+                    Priorité & Statut
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Priority */}
+                    <FormField
+                      control={form.control}
+                      name="priority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold text-white">
+                            Priorité <span className="text-purple-400">*</span>
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white/10 hover:bg-white/15 border border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 rounded-xl text-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-[#1a1a1a] border-white/20">
+                              {ACTIVITY_PRIORITIES.map((priority) => (
+                                <SelectItem key={priority} value={priority} className="focus:bg-blue-500/20">
+                                  <Badge className={cn(
+                                    getPriorityColor(priority),
+                                    priority === 'haute' || priority === 'urgente' ? 'animate-pulse' : ''
+                                  )}>
+                                    {ACTIVITY_PRIORITY_LABELS[priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || priority}
+                                  </Badge>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage className="text-purple-400" />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Status */}
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold text-white">
+                            Statut <span className="text-purple-400">*</span>
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white/10 hover:bg-white/15 border border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 rounded-xl text-white">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-[#1a1a1a] border-white/20">
+                              {ACTIVITY_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="focus:bg-blue-500/20">
+                                  <Badge className={getStatusColor(status)}>
+                                    {ACTIVITY_STATUS_LABELS[status as keyof typeof ACTIVITY_STATUS_LABELS] || status}
+                                  </Badge>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage className="text-purple-400" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* SECTION 3: Relations & Notes */}
+                <div className="border-l-2 border-purple-500/30 pl-4 bg-white/5 rounded-r-xl py-4 pr-4 space-y-6">
+                  <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">
+                    Relations & Notes
+                  </h3>
+                  
+                  {/* Related Contact */}
+                  <FormField
+                    control={form.control}
+                    name="contact_id"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                          <User className="w-4 h-4 text-purple-400" />
+                          Contact lié
+                        </FormLabel>
+                        <Popover open={contactOpen} onOpenChange={setContactOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "justify-between bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white",
+                                  !field.value && "text-white/40 italic"
+                                )}
+                              >
+                                {selectedContact ? (
+                                  <div className="flex items-center gap-2 truncate">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                                      {selectedContact.full_name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="truncate">{selectedContact.full_name}</span>
+                                    {selectedContact.email && (
+                                      <span className="text-white/40 text-xs truncate">
+                                        ({selectedContact.email})
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  "Rechercher un contact → (optionnel)"
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-purple-400" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[400px] p-0 bg-[#1a1a1a] border-white/20" align="start">
+                            <Command className="bg-transparent">
+                              <CommandInput 
+                                placeholder="Rechercher..." 
+                                value={contactSearch}
+                                onValueChange={setContactSearch}
+                                className="text-white placeholder:text-white/40 italic"
+                              />
+                              <CommandList>
+                                <CommandEmpty className="text-white/40 py-4 text-center">Aucun contact trouvé</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="none"
+                                    onSelect={() => {
+                                      field.onChange(null);
+                                      setContactOpen(false);
+                                    }}
+                                    className="text-white/60 hover:bg-purple-500/20"
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100 text-purple-400" : "opacity-0")} />
+                                    Aucun contact
+                                  </CommandItem>
+                                  {filteredContacts.map((contact) => (
+                                    <CommandItem
+                                      key={contact.id}
+                                      value={contact.full_name}
+                                      onSelect={() => {
+                                        field.onChange(contact.id);
+                                        setContactOpen(false);
+                                      }}
+                                      className="text-white hover:bg-purple-500/20"
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", field.value === contact.id ? "opacity-100 text-purple-400" : "opacity-0")} />
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-semibold text-white">
+                                          {contact.full_name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex flex-col">
+                                          <span className={contactSearch && contact.full_name.toLowerCase().includes(contactSearch.toLowerCase()) ? "text-purple-400" : ""}>
+                                            {contact.full_name}
+                                          </span>
+                                          {contact.email && (
+                                            <span className="text-xs text-white/40">{contact.email}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage className="text-purple-400" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Related Property */}
+                  <FormField
+                    control={form.control}
+                    name="property_id"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Home className="w-4 h-4 text-blue-400" />
+                          Bien lié
+                        </FormLabel>
+                        <Popover open={propertyOpen} onOpenChange={setPropertyOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "justify-between bg-white/10 hover:bg-white/15 border border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 rounded-xl text-white",
+                                  !field.value && "text-white/40 italic"
+                                )}
+                              >
+                                {selectedProperty ? (
+                                  <div className="flex items-center gap-2 truncate">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shrink-0">
+                                      <Home className="w-3 h-3 text-white" />
+                                    </div>
+                                    <span className="truncate">{selectedProperty.address}</span>
+                                    {selectedProperty.type && (
+                                      <Badge variant="outline" className="text-xs shrink-0 border-blue-500/30 text-blue-400">
+                                        {selectedProperty.type}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ) : (
+                                  "Rechercher un bien → (optionnel)"
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-blue-400" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[400px] p-0 bg-[#1a1a1a] border-white/20" align="start">
+                            <Command className="bg-transparent">
+                              <CommandInput 
+                                placeholder="Rechercher..." 
+                                value={propertySearch}
+                                onValueChange={setPropertySearch}
+                                className="text-white placeholder:text-white/40 italic"
+                              />
+                              <CommandList>
+                                <CommandEmpty className="text-white/40 py-4 text-center">Aucun bien trouvé</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="none"
+                                    onSelect={() => {
+                                      field.onChange(null);
+                                      setPropertyOpen(false);
+                                    }}
+                                    className="text-white/60 hover:bg-blue-500/20"
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100 text-blue-400" : "opacity-0")} />
+                                    Aucun bien
+                                  </CommandItem>
+                                  {filteredProperties.map((property) => (
+                                    <CommandItem
+                                      key={property.id}
+                                      value={property.address}
+                                      onSelect={() => {
+                                        field.onChange(property.id);
+                                        setPropertyOpen(false);
+                                      }}
+                                      className="text-white hover:bg-blue-500/20"
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", field.value === property.id ? "opacity-100 text-blue-400" : "opacity-0")} />
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                                          <Home className="w-3 h-3 text-white" />
+                                        </div>
+                                        <span className={propertySearch && property.address.toLowerCase().includes(propertySearch.toLowerCase()) ? "text-blue-400" : ""}>
+                                          {property.address}
+                                        </span>
+                                        {property.type && (
+                                          <Badge variant="outline" className="text-xs border-blue-500/30 text-blue-400">{property.type}</Badge>
+                                        )}
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage className="text-purple-400" />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Description */}
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-purple-400" />
+                          Description
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Textarea 
+                              {...field} 
+                              value={field.value || ''}
+                              placeholder="Notes ou détails supplémentaires..." 
+                              rows={4}
+                              className="resize-none min-h-[100px] bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white placeholder:text-white/40"
+                              style={{
+                                borderImage: 'linear-gradient(to right, rgba(124, 58, 237, 0.3), rgba(59, 130, 246, 0.3)) 1'
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        <div className="flex justify-between text-xs">
+                          <FormMessage className="text-purple-400" />
+                          <span className="text-blue-400">{(field.value || '').length}/500</span>
+                        </div>
                       </FormItem>
                     )}
                   />
                 </div>
 
-                {/* 4. Priority */}
-                <FormField
-                  control={form.control}
-                  name="priority"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-white">
-                        Priorité <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {ACTIVITY_PRIORITIES.map((priority) => (
-                            <SelectItem key={priority} value={priority}>
-                              <Badge className={getPriorityColor(priority)}>
-                                {priority}
-                              </Badge>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 5. Status */}
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-white">
-                        Statut <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {ACTIVITY_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              <Badge className={getStatusColor(status)}>
-                                {status}
-                              </Badge>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 6. Related Contact */}
-                <FormField
-                  control={form.control}
-                  name="contact_id"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel className="text-sm font-medium text-white">
-                        Contact lié
-                      </FormLabel>
-                      <Popover open={contactOpen} onOpenChange={setContactOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {selectedContact ? (
-                                <div className="flex items-center gap-2 truncate">
-                                  <User className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">{selectedContact.full_name}</span>
-                                  {selectedContact.email && (
-                                    <span className="text-muted-foreground text-xs truncate">
-                                      ({selectedContact.email})
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                "Aucun contact"
-                              )}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command>
-                            <CommandInput 
-                              placeholder="Rechercher un contact..." 
-                              value={contactSearch}
-                              onValueChange={setContactSearch}
-                            />
-                            <CommandList>
-                              <CommandEmpty>Aucun contact trouvé</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  value="none"
-                                  onSelect={() => {
-                                    field.onChange(null);
-                                    setContactOpen(false);
-                                  }}
-                                >
-                                  <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100" : "opacity-0")} />
-                                  Aucun contact
-                                </CommandItem>
-                                {filteredContacts.map((contact) => (
-                                  <CommandItem
-                                    key={contact.id}
-                                    value={contact.full_name}
-                                    onSelect={() => {
-                                      field.onChange(contact.id);
-                                      setContactOpen(false);
-                                    }}
-                                  >
-                                    <Check className={cn("mr-2 h-4 w-4", field.value === contact.id ? "opacity-100" : "opacity-0")} />
-                                    <div className="flex flex-col">
-                                      <span>{contact.full_name}</span>
-                                      {contact.email && (
-                                        <span className="text-xs text-muted-foreground">{contact.email}</span>
-                                      )}
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 7. Related Property */}
-                <FormField
-                  control={form.control}
-                  name="property_id"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel className="text-sm font-medium text-white">
-                        Bien lié
-                      </FormLabel>
-                      <Popover open={propertyOpen} onOpenChange={setPropertyOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {selectedProperty ? (
-                                <div className="flex items-center gap-2 truncate">
-                                  <Building2 className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">{selectedProperty.address}</span>
-                                  {selectedProperty.type && (
-                                    <Badge variant="outline" className="text-xs shrink-0">
-                                      {selectedProperty.type}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ) : (
-                                "Aucun bien"
-                              )}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command>
-                            <CommandInput 
-                              placeholder="Rechercher un bien..." 
-                              value={propertySearch}
-                              onValueChange={setPropertySearch}
-                            />
-                            <CommandList>
-                              <CommandEmpty>Aucun bien trouvé</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  value="none"
-                                  onSelect={() => {
-                                    field.onChange(null);
-                                    setPropertyOpen(false);
-                                  }}
-                                >
-                                  <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100" : "opacity-0")} />
-                                  Aucun bien
-                                </CommandItem>
-                                {filteredProperties.map((property) => (
-                                  <CommandItem
-                                    key={property.id}
-                                    value={property.address}
-                                    onSelect={() => {
-                                      field.onChange(property.id);
-                                      setPropertyOpen(false);
-                                    }}
-                                  >
-                                    <Check className={cn("mr-2 h-4 w-4", field.value === property.id ? "opacity-100" : "opacity-0")} />
-                                    <div className="flex items-center gap-2">
-                                      <span>{property.address}</span>
-                                      {property.type && (
-                                        <Badge variant="outline" className="text-xs">{property.type}</Badge>
-                                      )}
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
-
-                {/* 8. Description */}
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-white">
-                        Description
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          {...field} 
-                          value={field.value || ''}
-                          placeholder="Notes ou détails supplémentaires..." 
-                          rows={4}
-                          className="resize-none focus:ring-2 focus:ring-primary"
-                        />
-                      </FormControl>
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <FormMessage className="text-red-400" />
-                        <span>{(field.value || '').length}/500</span>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
-                {/* Submit Button */}
+                {/* Submit Button - Premium gradient */}
                 <Button 
                   type="submit" 
-                  className="w-full" 
-                  variant="accent"
+                  className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg shadow-purple-500/30 transition-all duration-200 hover:scale-[1.02] rounded-xl font-semibold tracking-wide text-white h-12"
                   disabled={createMutation.isPending}
                 >
-                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {createMutation.isPending ? 'Création...' : "Créer l'activité"}
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Création en cours...
+                    </>
+                  ) : (
+                    "Créer l'activité"
+                  )}
                 </Button>
               </form>
             </Form>
