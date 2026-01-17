@@ -18,7 +18,8 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Calendar, Loader2, Download } from 'lucide-react';
+import { Plus, Calendar, Loader2, Download, Columns, List } from 'lucide-react';
+import { PipelineStats } from '@/components/PipelineStats';
 import * as XLSX from 'xlsx';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
@@ -226,6 +227,7 @@ function KanbanColumn({
 export default function Deals() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const queryClient = useQueryClient();
 
   const sensors = useSensors(
@@ -443,7 +445,7 @@ export default function Deals() {
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg shadow-purple-500/30">
                 <Plus className="w-4 h-4 mr-2" />
                 Nouvelle opportunité
               </Button>
@@ -549,6 +551,34 @@ export default function Deals() {
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
+        </div>
+
+        {/* Pipeline Analytics Dashboard */}
+        <PipelineStats deals={deals} />
+
+        {/* View Toggle */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Vue pipeline</h2>
+          <div className="flex gap-1 bg-white/5 p-1 rounded-lg">
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className={viewMode === 'kanban' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' : 'text-muted-foreground hover:text-white'}
+            >
+              <Columns className="w-4 h-4 mr-2" />
+              Kanban
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className={viewMode === 'list' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' : 'text-muted-foreground hover:text-white'}
+            >
+              <List className="w-4 h-4 mr-2" />
+              Liste
+            </Button>
           </div>
         </div>
 
