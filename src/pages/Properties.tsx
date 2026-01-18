@@ -60,6 +60,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PROPERTY_TYPES, PROPERTY_STATUSES, PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS } from '@/lib/constants';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 import type { Tables } from '@/integrations/supabase/types';
+import PropertyDetailsSheet from '@/components/properties/PropertyDetailsSheet';
 
 type Property = Tables<'properties'>;
 type Contact = Tables<'contacts'>;
@@ -137,7 +138,7 @@ const modalVariants = {
   visible: { opacity: 1, scale: 1 },
 };
 
-function PropertyCard({ property, index }: { property: Property; index: number }) {
+function PropertyCard({ property, index, onClick }: { property: Property; index: number; onClick: () => void }) {
   const getStatusColor = (status: string | null) => {
     return PREMIUM_STATUS_COLORS[status || ''] || 'bg-muted text-muted-foreground';
   };
@@ -148,6 +149,8 @@ function PropertyCard({ property, index }: { property: Property; index: number }
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
       whileHover={{ scale: 1.02 }}
+      onClick={onClick}
+      className="cursor-pointer"
     >
       <Card className="glass border-white/10 hover:border-blue-500/30 transition-all group overflow-hidden">
         <div className="h-36 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
@@ -198,6 +201,8 @@ export default function Properties() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const { organizationId, user } = useAuth();
 
@@ -782,10 +787,25 @@ export default function Properties() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProperties?.map((property, index) => (
-              <PropertyCard key={property.id} property={property} index={index} />
+              <PropertyCard 
+                key={property.id} 
+                property={property} 
+                index={index} 
+                onClick={() => {
+                  setSelectedPropertyId(property.id);
+                  setIsSheetOpen(true);
+                }}
+              />
             ))}
           </div>
         )}
+
+        {/* Property Details Sheet */}
+        <PropertyDetailsSheet
+          propertyId={selectedPropertyId}
+          open={isSheetOpen}
+          onOpenChange={setIsSheetOpen}
+        />
     </motion.div>
   );
 }
