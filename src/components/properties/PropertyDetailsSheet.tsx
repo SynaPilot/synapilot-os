@@ -11,16 +11,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogOverlay,
+} from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -338,13 +338,18 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent 
-          side="right" 
-          className="w-full max-w-[720px] p-0 bg-[#111111] border-white/10 overflow-y-auto"
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        {/* Custom Premium Overlay with blur */}
+        <DialogOverlay className="bg-black/60 backdrop-blur-md">
+          {/* Subtle gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 pointer-events-none" />
+        </DialogOverlay>
+        
+        <DialogContent 
+          className="w-[min(920px,95vw)] max-h-[85vh] overflow-hidden p-0 rounded-2xl border border-white/10 bg-[#111111]/95 shadow-2xl backdrop-blur-xl data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out"
         >
           {isLoading ? (
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 overflow-y-auto max-h-[85vh]">
               <Skeleton className="h-8 w-2/3 bg-white/10" />
               <Skeleton className="h-4 w-1/2 bg-white/10" />
               <Skeleton className="h-64 w-full bg-white/10 rounded-xl" />
@@ -370,69 +375,67 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
               />
             </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-8 border-b border-white/10">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl md:text-3xl font-semibold text-white mb-2">
-                      {property.title || property.address || 'Bien sans titre'}
-                    </h2>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      {property.owner && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-blue-400" />
-                          Propriétaire: {property.owner.full_name}
-                        </span>
-                      )}
-                      {property.agent && (
-                        <span className="flex items-center gap-1 ml-2">
-                          <UserCheck className="w-3 h-3 text-purple-400" />
-                          Agent: {property.agent.full_name}
-                        </span>
-                      )}
+            <div className="flex flex-col max-h-[85vh]">
+              {/* Sticky Header */}
+              <div className="sticky top-0 z-10 bg-[#111111]/95 backdrop-blur-xl border-b border-white/10">
+                <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-6 md:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl md:text-2xl lg:text-3xl font-semibold text-white mb-2 truncate">
+                        {property.title || property.address || 'Bien sans titre'}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        {property.owner && (
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-blue-400" />
+                            Propriétaire: {property.owner.full_name}
+                          </span>
+                        )}
+                        {property.agent && (
+                          <span className="flex items-center gap-1 ml-2">
+                            <UserCheck className="w-3 h-3 text-purple-400" />
+                            Agent: {property.agent.full_name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {property.type && (
+                          <Badge variant="outline" className="border-blue-500/30 text-blue-400">
+                            {PROPERTY_TYPE_ICONS[property.type]}
+                            <span className="ml-1">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS]}</span>
+                          </Badge>
+                        )}
+                        {property.status && (
+                          <Badge className={PREMIUM_STATUS_COLORS[property.status]}>
+                            {PROPERTY_STATUS_LABELS[property.status as keyof typeof PROPERTY_STATUS_LABELS]}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {property.type && (
-                        <Badge variant="outline" className="border-blue-500/30 text-blue-400">
-                          {PROPERTY_TYPE_ICONS[property.type]}
-                          <span className="ml-1">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS]}</span>
-                        </Badge>
-                      )}
-                      {property.status && (
-                        <Badge className={PREMIUM_STATUS_COLORS[property.status]}>
-                          {PROPERTY_STATUS_LABELS[property.status as keyof typeof PROPERTY_STATUS_LABELS]}
-                        </Badge>
-                      )}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button 
+                        onClick={() => setEditDialogOpen(true)}
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02]"
+                      >
+                        <Pencil className="w-4 h-4 mr-2" />
+                        Modifier
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="border-white/20 hover:bg-white/10"
+                        onClick={copyAddress}
+                        disabled={!property.address}
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copier
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Button 
-                      onClick={() => setEditDialogOpen(true)}
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02]"
-                    >
-                      <Pencil className="w-4 h-4 mr-2" />
-                      Modifier
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="border-white/20 hover:bg-white/10"
-                      onClick={copyAddress}
-                      disabled={!property.address}
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copier
-                    </Button>
                   </div>
                 </div>
               </div>
 
-              <div className="p-8 space-y-8">
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-8">
                 {/* Photo Carousel */}
                 <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden shadow-lg shadow-blue-500/5">
                   {hasPhotos ? (
@@ -751,10 +754,10 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Lightbox */}
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
