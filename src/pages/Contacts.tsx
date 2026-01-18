@@ -20,7 +20,8 @@ import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target, ExternalLink } from 'lucide-react';
+import { Plus, Search, Phone, Mail, User, Loader2, Upload, TrendingUp, Users, Target, ExternalLink, UserPlus, Home, Key, Globe, FileText } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SmartBadges } from '@/components/SmartBadges';
@@ -277,42 +278,252 @@ export default function Contacts() {
             <p className="text-muted-foreground">{contacts?.length || 0} contacts</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-2" />Créer un contact</Button></DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Nouveau contact</DialogTitle></DialogHeader>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02]">
+                <Plus className="w-4 h-4 mr-2" />Créer un contact
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg backdrop-blur-xl border-white/20">
+              {/* Header Premium */}
+              <DialogHeader className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 -mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-xl border-b border-white/10">
+                <DialogTitle className="flex items-center gap-3 text-2xl font-semibold text-white">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+                    <UserPlus className="w-6 h-6 text-blue-400" />
+                  </div>
+                  Créer un contact
+                </DialogTitle>
+              </DialogHeader>
+              
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
-                  <FormField control={form.control} name="full_name" render={({ field }) => (
-                    <FormItem><FormLabel>Nom complet *</FormLabel><FormControl><Input placeholder="Jean Dupont" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="email@exemple.com" {...field} /></FormControl><FormMessage /></FormItem>
+                <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-6 pt-4">
+                  
+                  {/* SECTION 1 - Identité */}
+                  <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 space-y-4">
+                    <h3 className="text-sm font-medium text-blue-400 uppercase tracking-wide mb-3">Identité</h3>
+                    
+                    <FormField control={form.control} name="full_name" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white flex items-center gap-2">
+                          <User className="w-4 h-4 text-blue-400" />
+                          Nom complet <span className="text-blue-400">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Jean Dupont" 
+                            {...field} 
+                            autoFocus
+                            className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 text-lg font-semibold focus:shadow-lg focus:shadow-blue-500/20"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-blue-400" />
+                      </FormItem>
                     )} />
-                    <FormField control={form.control} name="phone" render={({ field }) => (
-                      <FormItem><FormLabel>Téléphone</FormLabel><FormControl><Input placeholder="06 12 34 56 78" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="email" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-purple-400" />
+                            Email
+                          </FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="email@exemple.com" 
+                              {...field}
+                              className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-blue-400" />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="phone" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-blue-400" />
+                            Téléphone
+                          </FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="06 12 34 56 78" 
+                              {...field}
+                              className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-blue-400" />
+                        </FormItem>
+                      )} />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="role" render={({ field }) => (
-                      <FormItem><FormLabel>Type</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger></FormControl>
-                          <SelectContent>{CONTACT_ROLES.map((role) => (<SelectItem key={role} value={role}>{role}</SelectItem>))}</SelectContent>
-                        </Select><FormMessage /></FormItem>
-                    )} />
+
+                  {/* SECTION 2 - Profil & Priorité */}
+                  <div className="border-l-2 border-purple-500/50 pl-4 bg-purple-500/5 rounded-r-xl py-4 space-y-4">
+                    <h3 className="text-sm font-medium text-purple-400 uppercase tracking-wide mb-3">Profil & Priorité</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="role" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white flex items-center gap-2">
+                            <Users className="w-4 h-4 text-purple-400" />
+                            Type de contact
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200">
+                                <SelectValue placeholder="Sélectionner un rôle" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-background/95 backdrop-blur-xl border-white/20">
+                              {CONTACT_ROLES.map((role) => {
+                                const getRoleIcon = (r: string) => {
+                                  switch(r) {
+                                    case 'acheteur': return <User className="w-4 h-4 text-blue-400" />;
+                                    case 'vendeur': return <Home className="w-4 h-4 text-purple-400" />;
+                                    case 'vendeur_acheteur': return <Users className="w-4 h-4 text-blue-500" />;
+                                    case 'locataire': return <Key className="w-4 h-4 text-purple-500" />;
+                                    case 'proprietaire': return <Home className="w-4 h-4 text-blue-600" />;
+                                    case 'prospect': return <Target className="w-4 h-4 text-purple-400" />;
+                                    case 'partenaire': return <Users className="w-4 h-4 text-blue-400" />;
+                                    default: return <User className="w-4 h-4 text-gray-400" />;
+                                  }
+                                };
+                                const getRoleDot = (r: string) => {
+                                  switch(r) {
+                                    case 'acheteur': return 'bg-blue-400';
+                                    case 'vendeur': return 'bg-purple-400';
+                                    case 'vendeur_acheteur': return 'bg-blue-500';
+                                    case 'locataire': return 'bg-purple-500';
+                                    case 'proprietaire': return 'bg-blue-600';
+                                    case 'prospect': return 'bg-purple-400';
+                                    case 'partenaire': return 'bg-blue-400';
+                                    default: return 'bg-gray-500';
+                                  }
+                                };
+                                return (
+                                  <SelectItem key={role} value={role} className="focus:bg-white/10">
+                                    <div className="flex items-center gap-2">
+                                      {getRoleIcon(role)}
+                                      <span>{CONTACT_ROLE_LABELS[role]}</span>
+                                      <div className={cn("w-2 h-2 rounded-full ml-auto", getRoleDot(role))} />
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage className="text-purple-400" />
+                        </FormItem>
+                      )} />
+                      
+                      <FormField control={form.control} name="source" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-blue-400" />
+                            Source
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <FormControl>
+                              <SelectTrigger className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200">
+                                <SelectValue placeholder="Origine du contact" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-background/95 backdrop-blur-xl border-white/20">
+                              {['Site web', 'Portail immo', 'Référencement', 'Prospection', 'Événement', 'Bouche à oreille'].map((source) => (
+                                <SelectItem key={source} value={source} className="focus:bg-white/10">
+                                  {source}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage className="text-blue-400" />
+                        </FormItem>
+                      )} />
+                    </div>
+                    
+                    {/* Score Urgence Slider */}
                     <FormField control={form.control} name="urgency_score" render={({ field }) => (
-                      <FormItem><FormLabel>Score (0-10)</FormLabel><FormControl><Input type="number" min={0} max={10} {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                      <FormItem>
+                        <FormLabel className="text-white flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-purple-400" />
+                            Score d'urgence
+                          </span>
+                          <span className={cn(
+                            "text-2xl font-bold transition-colors",
+                            field.value <= 3 ? "text-blue-400" : 
+                            field.value <= 6 ? "text-purple-400" : 
+                            "text-purple-500"
+                          )}>
+                            {field.value}
+                          </span>
+                        </FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                            <Slider
+                              value={[field.value]}
+                              onValueChange={(v) => field.onChange(v[0])}
+                              min={0}
+                              max={10}
+                              step={1}
+                              className="py-2"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span className="text-blue-400">0 - Froid</span>
+                              <span className="text-purple-400">5 - Tiède</span>
+                              <span className="text-purple-500">10 - Chaud</span>
+                            </div>
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-purple-400" />
+                      </FormItem>
                     )} />
                   </div>
-                  <FormField control={form.control} name="source" render={({ field }) => (
-                    <FormItem><FormLabel>Source</FormLabel><FormControl><Input placeholder="SeLoger, Prospection..." {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="notes" render={({ field }) => (
-                    <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea placeholder="Notes..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                    {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {createMutation.isPending ? 'Création...' : 'Créer le contact'}
+
+                  {/* SECTION 3 - Notes */}
+                  <div className="border-l-2 border-blue-500/30 pl-4 bg-white/5 rounded-r-xl py-4 space-y-4">
+                    <h3 className="text-sm font-medium text-blue-400/70 uppercase tracking-wide mb-3">Notes</h3>
+                    
+                    <FormField control={form.control} name="notes" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-400" />
+                          Notes
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Textarea 
+                              placeholder="Informations complémentaires sur ce contact..." 
+                              {...field} 
+                              rows={3}
+                              maxLength={1000}
+                              className="bg-white/10 hover:bg-white/15 border-white/20 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 min-h-[100px] resize-none"
+                            />
+                            <span className="absolute bottom-2 right-2 text-xs text-purple-400">
+                              {field.value?.length || 0}/1000
+                            </span>
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-blue-400" />
+                      </FormItem>
+                    )} />
+                  </div>
+                  
+                  {/* Submit Button Premium */}
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02] font-semibold tracking-wide h-12 text-base" 
+                    disabled={createMutation.isPending}
+                  >
+                    {createMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Création en cours...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-5 w-5" />
+                        Créer le contact
+                      </>
+                    )}
                   </Button>
                 </form>
               </Form>
