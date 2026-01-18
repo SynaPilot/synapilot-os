@@ -31,7 +31,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor,
-  useSensor, useSensors, DragStartEvent, DragEndEvent,
+  useSensor, useSensors, DragStartEvent, DragEndEvent, useDroppable,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -125,6 +125,11 @@ function SortableContactCard({ contact, onNavigate }: { contact: Contact; onNavi
 }
 
 function KanbanColumn({ stage, contacts, onNavigate }: { stage: PipelineStage; contacts: Contact[]; onNavigate: (id: string) => void }) {
+  // Use useDroppable to make the column a valid drop target
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column-${stage}`,
+  });
+
   const getStageColor = (stage: PipelineStage) => {
     const colors: Record<PipelineStage, string> = {
       nouveau: 'border-l-blue-500',
@@ -145,7 +150,14 @@ function KanbanColumn({ stage, contacts, onNavigate }: { stage: PipelineStage; c
   };
 
   return (
-    <div className={`flex-shrink-0 w-72 rounded-lg border-l-4 ${getStageColor(stage)} bg-card/50 border border-l-0 border-white/10`}>
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        `flex-shrink-0 w-72 rounded-lg border-l-4 bg-card/50 border border-l-0 transition-all duration-200`,
+        getStageColor(stage),
+        isOver ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/30' : 'border-white/10'
+      )}
+    >
       <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-sm">{PIPELINE_STAGE_LABELS[stage]}</h3>
@@ -258,15 +270,46 @@ export default function Contacts() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveContact(null);
+    
     if (!over) return;
+    
     const draggedContactId = active.id as string;
     const overId = over.id as string;
-    const targetStage = PIPELINE_STAGES.find((stage) => contactsByStage[stage].some((c) => c.id === overId) || stage === overId);
-    if (targetStage) {
-      const draggedContact = contacts?.find((c) => c.id === draggedContactId);
-      if (draggedContact && draggedContact.pipeline_stage !== targetStage) {
-        updateStageMutation.mutate({ id: draggedContactId, stage: targetStage });
+    
+    // Determine target stage - check if dropped on column or on a contact card
+    let targetStage: PipelineStage | undefined;
+    
+    // Check if dropped on a column (ID format: "column-{stage}")
+    if (overId.startsWith('column-')) {
+      const stageFromColumn = overId.replace('column-', '') as PipelineStage;
+      if (PIPELINE_STAGES.includes(stageFromColumn)) {
+        targetStage = stageFromColumn;
       }
+    } else {
+      // Dropped on a contact card - find which stage that contact is in
+      for (const stage of PIPELINE_STAGES) {
+        if (contactsByStage[stage].some((c) => c.id === overId)) {
+          targetStage = stage;
+          break;
+        }
+      }
+    }
+    
+    if (!targetStage) {
+      console.warn('[Kanban] Could not determine target stage for drop', { overId });
+      return;
+    }
+    
+    const draggedContact = contacts?.find((c) => c.id === draggedContactId);
+    
+    // Only update if moving to a different stage
+    if (draggedContact && draggedContact.pipeline_stage !== targetStage) {
+      console.log('[Kanban] Moving contact', {
+        contactId: draggedContactId,
+        from: draggedContact.pipeline_stage,
+        to: targetStage,
+      });
+      updateStageMutation.mutate({ id: draggedContactId, stage: targetStage });
     }
   };
 
