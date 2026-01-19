@@ -247,6 +247,7 @@ export default function Activities() {
   const [propertySearch, setPropertySearch] = useState('');
   const [contactOpen, setContactOpen] = useState(false);
   const [propertyOpen, setPropertyOpen] = useState(false);
+  const [prefillData, setPrefillData] = useState<Partial<ActivityFormValues> | null>(null);
   const queryClient = useQueryClient();
   const { organizationId, user } = useAuth();
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +281,23 @@ export default function Activities() {
     }
   }, [isDialogOpen]);
 
+  // Apply prefill data when dialog opens with prefill
+  useEffect(() => {
+    if (isDialogOpen && prefillData) {
+      form.reset({
+        name: prefillData.name || '',
+        type: prefillData.type || 'appel',
+        date: prefillData.date || new Date(),
+        time: prefillData.time || currentTime,
+        priority: prefillData.priority || 'normale',
+        status: prefillData.status || 'planifie',
+        contact_id: prefillData.contact_id || null,
+        property_id: prefillData.property_id || null,
+        description: prefillData.description || '',
+      });
+    }
+  }, [isDialogOpen, prefillData, form, currentTime]);
+
   // Reset form when dialog closes
   useEffect(() => {
     if (!isDialogOpen) {
@@ -298,8 +316,32 @@ export default function Activities() {
       });
       setContactSearch('');
       setPropertySearch('');
+      setPrefillData(null); // Reset prefill data
     }
   }, [isDialogOpen, form]);
+
+  // Handler for "Visites" quick action button
+  const handleVisiteClick = () => {
+    const now = new Date();
+    // Add 2 hours
+    const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    // Round to nearest 30 minutes
+    const minutes = twoHoursLater.getMinutes();
+    twoHoursLater.setMinutes(Math.round(minutes / 30) * 30);
+    twoHoursLater.setSeconds(0);
+    twoHoursLater.setMilliseconds(0);
+    
+    const timeStr = `${String(twoHoursLater.getHours()).padStart(2, '0')}:${String(twoHoursLater.getMinutes()).padStart(2, '0')}`;
+    
+    setPrefillData({
+      type: 'visite',
+      status: 'planifie',
+      date: twoHoursLater,
+      time: timeStr,
+      priority: 'normale',
+    });
+    setIsDialogOpen(true);
+  };
 
   const { data: activities, isLoading } = useOrgQuery<Activity[]>('activities', {
     select: '*, contacts:contact_id(full_name), properties:property_id(address, type)',
@@ -941,7 +983,7 @@ export default function Activities() {
               }}
               features={[
                 { icon: <Phone className="w-6 h-6 text-purple-400" />, title: "Relances", desc: "Programmez des rappels automatiques", iconBgClass: "bg-purple-500/20" },
-                { icon: <Home className="w-6 h-6 text-blue-400" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain", iconBgClass: "bg-blue-500/20" },
+                { icon: <Home className="w-6 h-6 text-blue-400" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain", iconBgClass: "bg-blue-500/20", onClick: handleVisiteClick },
                 { icon: <Mail className="w-6 h-6 text-purple-400" />, title: "Emails", desc: "Suivez vos échanges clients", iconBgClass: "bg-purple-500/20" }
               ]}
               className="py-8"
