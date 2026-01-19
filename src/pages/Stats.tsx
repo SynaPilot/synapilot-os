@@ -20,9 +20,7 @@ import { formatCurrency } from '@/lib/formatters';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { EnhancedKPICard } from '@/components/charts/EnhancedKPICard';
-import { FunnelChart } from '@/components/charts/FunnelChart';
 import { ActivityHeatmap } from '@/components/charts/ActivityHeatmap';
-import { DEAL_STAGES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { 
   BarChart, 
@@ -176,27 +174,6 @@ export default function Stats() {
         month,
         ca: monthDeals.reduce((sum, d) => sum + (d.amount || 0), 0),
         commissions: monthDeals.reduce((sum, d) => sum + (d.commission_amount || 0), 0),
-      };
-    });
-  }, [deals]);
-
-  // Pipeline funnel data
-  const funnelData = useMemo(() => {
-    if (!deals) return [];
-    
-    const stages: DealStage[] = ['nouveau', 'estimation', 'mandat', 'visite', 'offre', 'negociation', 'compromis', 'vendu'];
-    const totalDeals = deals.filter(d => d.stage !== 'perdu').length || 1;
-    
-    return stages.map((stage, index) => {
-      const stageDeals = deals.filter(d => d.stage === stage);
-      const count = stageDeals.length;
-      const value = stageDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
-      
-      return {
-        name: DEAL_STAGE_LABELS[stage],
-        count,
-        value,
-        percentage: Math.round((count / totalDeals) * 100),
       };
     });
   }, [deals]);
@@ -362,58 +339,52 @@ export default function Stats() {
           </Card>
         </motion.div>
 
-        {/* Pipeline Funnel */}
+        {/* Activity Calendar Heatmap - Premium Widget */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <Card className="glass">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                Entonnoir de Conversion
-              </CardTitle>
-              <CardDescription>Progression des opportunités</CardDescription>
+          <Card className="bg-white/5 border-white/10 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold">Votre Activité</CardTitle>
+                  <CardDescription className="text-muted-foreground">Derniers 6 mois</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
-                  ))}
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-3 w-32 ml-auto" />
+                </div>
+              ) : activityHeatmapData.every(d => d.count === 0) ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-3">
+                    <Calendar className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">Aucune activité enregistrée</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                  >
+                    Créer une activité
+                  </Button>
                 </div>
               ) : (
-                <FunnelChart data={funnelData} />
+                <ActivityHeatmap data={activityHeatmapData} months={6} />
               )}
             </CardContent>
           </Card>
         </motion.div>
       </div>
-
-      {/* Activity Heatmap */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-      >
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Calendar className="w-4 h-4 text-primary" />
-              Votre Activité
-            </CardTitle>
-            <CardDescription>Derniers 6 mois</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : (
-              <ActivityHeatmap data={activityHeatmapData} months={6} />
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
 
       {/* Pipeline & Activities Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
