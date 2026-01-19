@@ -9,11 +9,15 @@ interface FeatureCardProps {
   title: string;
   desc: string;
   iconBgClass?: string;
+  onClick?: () => void;
 }
 
-function FeatureCard({ icon, title, desc, iconBgClass = 'bg-purple-500/20' }: FeatureCardProps) {
+function FeatureCard({ icon, title, desc, iconBgClass = 'bg-purple-500/20', onClick }: FeatureCardProps) {
   return (
-    <Card className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors cursor-pointer group">
+    <Card 
+      className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
+      onClick={onClick}
+    >
       <CardContent className="p-6 text-center">
         <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3", iconBgClass)}>
           {icon}
@@ -45,6 +49,7 @@ interface EmptyStateProps {
     title: string;
     desc: string;
     iconBgClass?: string;
+    onClick?: () => void;
   }>;
   className?: string;
 }
