@@ -47,14 +47,13 @@ export function AppHeader() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Open popover when we have results potential
+  // Keep focus inside the input when the popover opens (Radix may auto-focus content)
   useEffect(() => {
-    if (searchQuery.length >= 1) {
-      setIsSearchOpen(true);
-    } else {
-      setIsSearchOpen(false);
-    }
-  }, [searchQuery]);
+    if (!isSearchOpen) return;
+    // Defer to next frame to avoid fighting Radix focus management
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [isSearchOpen]);
 
   const { data: searchData } = useQuery({
     queryKey: ['global-search', debouncedQuery],
@@ -124,12 +123,15 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-full px-6 gap-4">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="md:hidden" />
-            <Popover open={isSearchOpen && searchQuery.length >= 1} onOpenChange={(open) => {
+            <Popover
+              open={isSearchOpen && searchQuery.length >= 1}
+              onOpenChange={(open) => {
               // Only close if explicitly requested (click outside), don't interfere with typing
               if (!open) {
                 setIsSearchOpen(false);
               }
-            }}>
+              }}
+            >
               <PopoverTrigger asChild>
                 <div className="relative hidden sm:block header-search">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground stroke-2" />
@@ -137,7 +139,10 @@ export function AppHeader() {
                     ref={inputRef}
                     placeholder="Rechercher contacts, deals, biens..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (e.target.value.length >= 1) setIsSearchOpen(true);
+                    }}
                     onFocus={() => {
                       if (searchQuery.length >= 1) {
                         setIsSearchOpen(true);
@@ -147,7 +152,12 @@ export function AppHeader() {
                   />
                 </div>
               </PopoverTrigger>
-            <PopoverContent className="w-96 p-0 bg-background-secondary border border-border shadow-modal rounded-xl" align="start">
+            <PopoverContent
+              className="w-96 p-0 bg-background-secondary border border-border shadow-modal rounded-xl"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
               <div className="max-h-96 overflow-y-auto">
                 {/* Contacts */}
                 {searchData?.contacts && searchData.contacts.length > 0 && (
