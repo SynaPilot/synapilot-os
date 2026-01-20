@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,7 +30,7 @@ import {
   Calendar, MapPin, ArrowUpRight, MoreHorizontal
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { SmartBadges } from '@/components/SmartBadges';
 import { getContactBadges } from '@/lib/smart-features';
@@ -490,15 +490,27 @@ function KpiCard({ icon: Icon, label, value, color }: { icon: React.ElementType;
 
 // ==================== MAIN COMPONENT ====================
 export default function Contacts() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortOption, setSortOption] = useState<SortOption>('followup');
-  const [filterOption, setFilterOption] = useState<FilterOption>('all');
+  const [filterOption, setFilterOption] = useState<FilterOption>(() => {
+    return searchParams.get('filter') === 'to_follow_up' ? 'overdue' : 'all';
+  });
   const queryClient = useQueryClient();
   const { organizationId } = useAuth();
   const navigate = useNavigate();
+  
+  // Clear query param after applying filter
+  useEffect(() => {
+    if (searchParams.get('filter')) {
+      searchParams.delete('filter');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleNavigateToContact = (id: string) => navigate(`/contacts/${id}`);
 
