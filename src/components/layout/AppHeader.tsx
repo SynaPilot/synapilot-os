@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, User, Mail, Phone, Calendar, FileText, DollarSign, Home } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,16 +35,35 @@ export function AppHeader() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce search query (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Open popover when we have results potential
+  useEffect(() => {
+    if (searchQuery.length >= 1) {
+      setIsSearchOpen(true);
+    } else {
+      setIsSearchOpen(false);
+    }
+  }, [searchQuery]);
 
   const { data: searchData } = useQuery({
-    queryKey: ['global-search', searchQuery],
+    queryKey: ['global-search', debouncedQuery],
     queryFn: async (): Promise<SearchResults> => {
-      if (!searchQuery || searchQuery.length < 2) {
+      if (!debouncedQuery || debouncedQuery.length < 1) {
         return { contacts: [], deals: [], properties: [] };
       }
       
-      const query = `%${searchQuery}%`;
+      const query = `%${debouncedQuery}%`;
       
       const [contactsRes, dealsRes, propertiesRes] = await Promise.all([
         supabase
@@ -70,7 +89,7 @@ export function AppHeader() {
         properties: propertiesRes.data || [] 
       };
     },
-    enabled: searchQuery.length >= 2
+    enabled: debouncedQuery.length >= 1
   });
 
   const initials = user?.user_metadata?.full_name
@@ -105,16 +124,24 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-full px-6 gap-4">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="md:hidden" />
-            <Popover open={isSearchOpen && searchQuery.length >= 2} onOpenChange={setIsSearchOpen}>
+            <Popover open={isSearchOpen && searchQuery.length >= 1} onOpenChange={(open) => {
+              // Only close if explicitly requested (click outside), don't interfere with typing
+              if (!open) {
+                setIsSearchOpen(false);
+              }
+            }}>
               <PopoverTrigger asChild>
                 <div className="relative hidden sm:block header-search">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground stroke-2" />
                   <Input
+                    ref={inputRef}
                     placeholder="Rechercher contacts, deals, biens..."
                     value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setIsSearchOpen(e.target.value.length >= 2);
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => {
+                      if (searchQuery.length >= 1) {
+                        setIsSearchOpen(true);
+                      }
                     }}
                     className="pl-11 w-96 bg-background-secondary"
                   />
@@ -190,7 +217,7 @@ export function AppHeader() {
                 )}
                 
                 {/* No results */}
-                {searchQuery.length >= 2 && !hasResults && (
+                {searchQuery.length >= 1 && !hasResults && (
                   <div className="p-10 text-center text-muted-foreground">
                     <Search className="w-10 h-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">Aucun résultat pour "{searchQuery}"</p>
