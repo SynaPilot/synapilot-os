@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/EmptyState';
-import { SmartActions } from '@/components/SmartActions';
+import { AlertsSLAWidget } from '@/components/AlertsSLAWidget';
 import { EnhancedKPICard } from '@/components/charts/EnhancedKPICard';
 import { 
   KPICardSkeleton, 
@@ -286,13 +286,13 @@ export default function Dashboard() {
               ) : null;
             })()}
 
-            {/* Smart Actions - AI Recommendations */}
+            {/* Alerts & SLA Widget */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.35 }}
             >
-              <SmartActions />
+              <AlertsSLAWidget />
             </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
