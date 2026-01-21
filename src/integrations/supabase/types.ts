@@ -102,6 +102,7 @@ export type Database = {
       }
       activities: {
         Row: {
+          ai_generated: boolean | null
           assigned_to: string | null
           completed_at: string | null
           contact_id: string | null
@@ -120,6 +121,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_generated?: boolean | null
           assigned_to?: string | null
           completed_at?: string | null
           contact_id?: string | null
@@ -138,6 +140,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_generated?: boolean | null
           assigned_to?: string | null
           completed_at?: string | null
           contact_id?: string | null
