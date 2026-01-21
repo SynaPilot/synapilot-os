@@ -25,6 +25,7 @@ const Deals = lazy(() => import("./pages/Deals"));
 const Activities = lazy(() => import("./pages/Activities"));
 const Stats = lazy(() => import("./pages/Stats"));
 const Settings = lazy(() => import("./pages/Settings"));
+const EmailsIA = lazy(() => import("./pages/EmailsIA"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -101,6 +102,9 @@ function AppRoutes() {
       } />
       <Route path="/settings" element={
         <ProtectedRoute><Settings /></ProtectedRoute>
+      } />
+      <Route path="/emails-ia" element={
+        <ProtectedRoute><EmailsIA /></ProtectedRoute>
       } />
       
       {/* Catch-all */}
