@@ -44,7 +44,7 @@ import {
   ArrowLeft,
   Mail,
   Phone,
-  Calendar,
+  Calendar as CalendarIcon,
   User,
   Edit,
   Trash2,
@@ -58,6 +58,11 @@ import {
   TrendingUp,
   Loader2,
   Save,
+  Edit3,
+  MapPin,
+  RefreshCw,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,7 +70,12 @@ import { motion } from 'framer-motion';
 import { SmartBadges } from '@/components/SmartBadges';
 import { getContactBadges } from '@/lib/smart-features';
 import { formatDate, formatRelativeTime, formatCurrency } from '@/lib/formatters';
-import { CONTACT_ROLES, ACTIVITY_TYPES, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { CONTACT_ROLES, ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_PRIORITIES, ACTIVITY_PRIORITY_LABELS, ACTIVITY_STATUSES, ACTIVITY_STATUS_LABELS, DEAL_STAGE_LABELS, type DealStage } from '@/lib/constants';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AIMessageGenerator } from '@/components/activities/AIMessageGenerator';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -81,12 +91,53 @@ const pageVariants = {
 };
 
 const activitySchema = z.object({
+  name: z.string()
+    .min(3, "Le titre doit contenir au moins 3 caractères")
+    .max(100, "Le titre ne peut pas dépasser 100 caractères"),
   type: z.enum(['appel', 'email', 'visite', 'rdv', 'relance', 'signature', 'note', 'tache', 'autre']),
-  description: z.string().min(1, 'Description requise').max(1000),
-  date: z.string().optional(),
+  date: z.date(),
+  time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Format HH:mm requis"),
+  priority: z.enum(['basse', 'normale', 'haute', 'urgente']),
+  status: z.enum(['planifie', 'en_cours', 'termine', 'annule']),
+  description: z.string().max(500, "Maximum 500 caractères").optional(),
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
+
+function getActivityTypeIcon(type: string | null) {
+  const config: Record<string, { icon: React.ElementType; dotColor: string }> = {
+    'appel': { icon: Phone, dotColor: 'bg-purple-400' },
+    'email': { icon: Mail, dotColor: 'bg-blue-400' },
+    'visite': { icon: MapPin, dotColor: 'bg-purple-600' },
+    'relance': { icon: RefreshCw, dotColor: 'bg-blue-600' },
+    'rdv': { icon: CalendarIcon, dotColor: 'bg-purple-500' },
+    'signature': { icon: FileText, dotColor: 'bg-blue-500' },
+    'note': { icon: FileText, dotColor: 'bg-purple-400' },
+    'tache': { icon: CheckCircle2, dotColor: 'bg-blue-400' },
+    'autre': { icon: CalendarIcon, dotColor: 'bg-gray-400' },
+  };
+  return config[type || ''] || { icon: CalendarIcon, dotColor: 'bg-gray-400' };
+}
+
+function getPriorityColor(priority: string | null) {
+  const colors: Record<string, string> = {
+    'urgente': 'bg-purple-600/20 text-purple-300 border-purple-600/30',
+    'haute': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    'normale': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'basse': 'bg-blue-400/20 text-blue-300 border-blue-400/30',
+  };
+  return colors[priority || ''] || 'bg-muted text-muted-foreground';
+}
+
+function getStatusColor(priority: string | null) {
+  const colors: Record<string, string> = {
+    'planifie': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    'en_cours': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'termine': 'bg-blue-700/30 text-blue-200 border-blue-700/40',
+    'annule': 'bg-gray-600/20 text-gray-400 border-gray-600/30',
+  };
+  return colors[priority || ''] || 'bg-muted text-muted-foreground';
+}
 
 function getActivityIcon(type: string) {
   switch (type) {
@@ -134,6 +185,10 @@ export default function ContactDetail() {
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [localNotes, setLocalNotes] = useState<string | null>(null);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   const contactQueryKey = ['contact', id, organizationId];
 
@@ -177,24 +232,53 @@ export default function ContactDetail() {
   const activityForm = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
     defaultValues: {
+      name: '',
       type: 'appel',
+      date: now,
+      time: currentTime,
+      priority: 'normale',
+      status: 'planifie',
       description: '',
-      date: new Date().toISOString().split('T')[0],
     },
   });
+
+  // Reset form when dialog closes
+  const handleDialogChange = (open: boolean) => {
+    setIsActivityDialogOpen(open);
+    if (!open) {
+      const newNow = new Date();
+      const newTime = `${String(newNow.getHours()).padStart(2, '0')}:${String(newNow.getMinutes()).padStart(2, '0')}`;
+      activityForm.reset({
+        name: '',
+        type: 'appel',
+        date: newNow,
+        time: newTime,
+        priority: 'normale',
+        status: 'planifie',
+        description: '',
+      });
+    }
+  };
 
   // Create activity mutation
   const createActivityMutation = useMutation({
     mutationFn: async (values: ActivityFormValues) => {
       if (!organizationId || !id) throw new Error('Organisation non trouvée');
+      
+      // Combine date and time
+      const [hours, minutes] = values.time.split(':').map(Number);
+      const dateTime = new Date(values.date);
+      dateTime.setHours(hours, minutes, 0, 0);
+      
       const { error } = await supabase.from('activities').insert([{
-        name: values.description.slice(0, 100),
+        name: values.name,
         type: values.type,
-        description: values.description,
-        date: values.date || new Date().toISOString(),
+        description: values.description || null,
+        date: dateTime.toISOString(),
         contact_id: id,
         organization_id: organizationId,
-        status: 'termine',
+        status: values.status,
+        priority: values.priority,
       }]);
       if (error) throw error;
     },
@@ -202,7 +286,7 @@ export default function ContactDetail() {
       queryClient.invalidateQueries({ queryKey: ['activities', organizationId] });
       setIsActivityDialogOpen(false);
       activityForm.reset();
-      toast.success('Activité ajoutée');
+      toast.success('Activité ajoutée ✅');
     },
     onError: (error) => toast.error(`Erreur: ${error.message}`),
   });
@@ -505,88 +589,307 @@ export default function ContactDetail() {
                 <Clock className="w-4 h-4 text-primary" />
                 Activité
               </CardTitle>
-              <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
+              <Dialog open={isActivityDialogOpen} onOpenChange={handleDialogChange}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2">
+                  <Button size="sm" className="gap-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
                     <Plus className="w-4 h-4" />
                     Ajouter
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Nouvelle activité</DialogTitle>
-                  </DialogHeader>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 backdrop-blur-xl shadow-2xl border-border rounded-xl">
+                  {/* Premium Header */}
+                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-6 pb-4 border-b border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-semibold flex items-center gap-3">
+                        <CalendarIcon className="w-5 h-5 text-purple-400" />
+                        Nouvelle activité
+                      </DialogTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Pour <span className="font-medium text-primary">{contact.full_name}</span>
+                      </p>
+                    </DialogHeader>
+                  </div>
+                  
                   <Form {...activityForm}>
-                    <form
-                      onSubmit={activityForm.handleSubmit((v) => createActivityMutation.mutate(v))}
-                      className="space-y-4"
-                    >
-                      <FormField
-                        control={activityForm.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Type d'activité</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                    <form onSubmit={activityForm.handleSubmit((v) => createActivityMutation.mutate(v))} className="p-6 space-y-6">
+                      
+                      {/* Section 1: Détails */}
+                      <div className="border-l-2 border-purple-500/50 pl-4 bg-purple-500/5 rounded-r-xl py-4 pr-4 space-y-4">
+                        <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+                          Détails de l'activité
+                        </h3>
+                        
+                        {/* Name */}
+                        <FormField
+                          control={activityForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                <Edit3 className="w-4 h-4 text-purple-400" />
+                                Nom <span className="text-purple-400">*</span>
+                              </FormLabel>
                               <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Sélectionner" />
-                                </SelectTrigger>
+                                <Input 
+                                  {...field} 
+                                  placeholder="Ex: Appel de suivi" 
+                                  className="bg-background/50 border-border focus:border-purple-500"
+                                />
                               </FormControl>
-                              <SelectContent>
-                                {ACTIVITY_TYPES.map((type) => (
-                                  <SelectItem key={type} value={type}>
-                                    {type}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={activityForm.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={activityForm.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Décrivez l'activité..."
-                                {...field}
-                                rows={3}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <DialogFooter>
-                        <Button type="submit" disabled={createActivityMutation.isPending}>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Type */}
+                        <FormField
+                          control={activityForm.control}
+                          name="type"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-medium">
+                                Type <span className="text-purple-400">*</span>
+                              </FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="bg-background/50 border-border">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {ACTIVITY_TYPES.map((type) => {
+                                    const { icon: TypeIcon, dotColor } = getActivityTypeIcon(type);
+                                    return (
+                                      <SelectItem key={type} value={type}>
+                                        <div className="flex items-center gap-2">
+                                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                          <TypeIcon className="w-4 h-4 text-muted-foreground" />
+                                          <span>{ACTIVITY_TYPE_LABELS[type as keyof typeof ACTIVITY_TYPE_LABELS] || type}</span>
+                                        </div>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Date & Time */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={activityForm.control}
+                            name="date"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col">
+                                <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-blue-400" />
+                                  Date <span className="text-purple-400">*</span>
+                                </FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          "pl-3 text-left font-normal bg-background/50 border-border",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        {field.value ? (
+                                          format(field.value, "d MMM yyyy", { locale: fr })
+                                        ) : (
+                                          <span>Choisir</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={field.onChange}
+                                      locale={fr}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={activityForm.control}
+                            name="time"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-blue-400" />
+                                  Heure <span className="text-purple-400">*</span>
+                                </FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    {...field} 
+                                    type="time" 
+                                    className="bg-background/50 border-border"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Section 2: Priorité & Statut */}
+                      <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-4">
+                        <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                          Priorité & Statut
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={activityForm.control}
+                            name="priority"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium">Priorité</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger className="bg-background/50 border-border">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {ACTIVITY_PRIORITIES.map((priority) => (
+                                      <SelectItem key={priority} value={priority}>
+                                        <Badge className={cn(
+                                          getPriorityColor(priority),
+                                          (priority === 'haute' || priority === 'urgente') && 'animate-pulse'
+                                        )}>
+                                          {ACTIVITY_PRIORITY_LABELS[priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || priority}
+                                        </Badge>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={activityForm.control}
+                            name="status"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-sm font-medium">Statut</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger className="bg-background/50 border-border">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {ACTIVITY_STATUSES.map((status) => (
+                                      <SelectItem key={status} value={status}>
+                                        <Badge className={getStatusColor(status)}>
+                                          {ACTIVITY_STATUS_LABELS[status as keyof typeof ACTIVITY_STATUS_LABELS] || status}
+                                        </Badge>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Section 3: Description */}
+                      <div className="border-l-2 border-border pl-4 bg-muted/20 rounded-r-xl py-4 pr-4 space-y-4">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Notes & Description
+                        </h3>
+                        
+                        <FormField
+                          control={activityForm.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                                  Description
+                                </FormLabel>
+                                {(activityForm.watch('type') === 'email' || activityForm.watch('type') === 'relance') && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowAIGenerator(true)}
+                                    className="gap-1.5 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                                  >
+                                    <Sparkles className="w-4 h-4" />
+                                    Générer avec IA
+                                  </Button>
+                                )}
+                              </div>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Décrivez l'activité..."
+                                  {...field}
+                                  rows={3}
+                                  className="bg-background/50 border-border resize-none"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          onClick={() => handleDialogChange(false)}
+                        >
+                          Annuler
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          disabled={createActivityMutation.isPending}
+                          className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                        >
                           {createActivityMutation.isPending && (
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           )}
-                          Ajouter l'activité
+                          Créer l'activité
                         </Button>
-                      </DialogFooter>
+                      </div>
                     </form>
                   </Form>
                 </DialogContent>
               </Dialog>
+              
+              {/* AI Generator */}
+              <AIMessageGenerator
+                open={showAIGenerator}
+                onOpenChange={setShowAIGenerator}
+                contactId={contact.id}
+                propertyId={null}
+                activityType={activityForm.watch('type')}
+                onSelectMessage={(message) => {
+                  activityForm.setValue('description', message);
+                  setShowAIGenerator(false);
+                }}
+              />
             </div>
           </CardHeader>
           <CardContent>
