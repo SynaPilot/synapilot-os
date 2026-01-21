@@ -53,14 +53,14 @@ import {
   Home,
   Play,
   FileText,
-  CreditCard,
   Check,
   ChevronsUpDown,
   User,
   Building2,
   Clock,
   Edit3,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
@@ -73,10 +73,12 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
+import { AIMessageGenerator } from '@/components/activities/AIMessageGenerator';
 
 type Activity = Tables<'activities'> & {
   contacts?: { full_name: string } | null;
   properties?: { address: string; type?: string } | null;
+  ai_generated?: boolean;
 };
 
 type Contact = { id: string; full_name: string; email: string | null };
@@ -188,6 +190,12 @@ function ActivityItem({
           
           <div className="flex flex-wrap gap-2 mt-2">
             <Badge variant="outline" className="text-xs">{ACTIVITY_TYPE_LABELS[activity.type as keyof typeof ACTIVITY_TYPE_LABELS] || activity.type}</Badge>
+            {activity.ai_generated && (
+              <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-400 border-purple-500/20">
+                <Sparkles className="w-3 h-3 mr-1" />
+                IA
+              </Badge>
+            )}
             {activity.priority && (
               <Badge className={`text-xs ${getPriorityColor(activity.priority)}`}>
                 {ACTIVITY_PRIORITY_LABELS[activity.priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || activity.priority}
@@ -249,6 +257,8 @@ export default function Activities() {
   const [contactOpen, setContactOpen] = useState(false);
   const [propertyOpen, setPropertyOpen] = useState(false);
   const [prefillData, setPrefillData] = useState<Partial<ActivityFormValues> | null>(null);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const queryClient = useQueryClient();
   const { organizationId, user } = useAuth();
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -318,7 +328,8 @@ export default function Activities() {
       });
       setContactSearch('');
       setPropertySearch('');
-      setPrefillData(null); // Reset prefill data
+      setPrefillData(null);
+      setAiGenerated(false); // Reset AI generated flag
     }
   }, [isDialogOpen, form]);
 
@@ -394,6 +405,7 @@ export default function Activities() {
           contact_id: values.contact_id || null,
           property_id: values.property_id || null,
           assigned_to: user?.id || null,
+          ai_generated: aiGenerated,
         }]);
 
       if (error) throw error;
@@ -401,7 +413,7 @@ export default function Activities() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: activitiesQueryKey });
       setIsDialogOpen(false);
-      toast.success('✅ Activité créée avec succès');
+      toast.success(aiGenerated ? '✅ Activité IA créée avec succès ✨' : '✅ Activité créée avec succès');
     },
     onError: (error) => {
       toast.error(`❌ Erreur : ${error.message}`);
@@ -891,36 +903,82 @@ export default function Activities() {
                     )}
                   />
 
-                  {/* Description */}
+                  {/* Description with AI Generator */}
                   <FormField
                     control={form.control}
                     name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4 text-purple-400" />
-                          Description
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Textarea 
-                              {...field} 
-                              value={field.value || ''}
-                              placeholder="Notes ou détails supplémentaires..." 
-                              rows={4}
-                              className="resize-none min-h-[100px] bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white placeholder:text-white/40"
-                              style={{
-                                borderImage: 'linear-gradient(to right, rgba(124, 58, 237, 0.3), rgba(59, 130, 246, 0.3)) 1'
-                              }}
-                            />
+                    render={({ field }) => {
+                      const activityType = form.watch('type');
+                      const contactId = form.watch('contact_id');
+                      const propertyId = form.watch('property_id');
+                      const showAIButton = activityType === 'relance' || activityType === 'email';
+                      
+                      return (
+                        <FormItem>
+                          <div className="flex items-center justify-between">
+                            <FormLabel className="text-sm font-semibold text-white flex items-center gap-2">
+                              <MessageSquare className="w-4 h-4 text-purple-400" />
+                              Description
+                            </FormLabel>
+                            {showAIButton && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowAIGenerator(true)}
+                                disabled={!contactId}
+                                className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 h-7 px-2"
+                              >
+                                <Sparkles className="w-4 h-4 mr-1" />
+                                Générer avec IA
+                              </Button>
+                            )}
                           </div>
-                        </FormControl>
-                        <div className="flex justify-between text-xs">
-                          <FormMessage className="text-purple-400" />
-                          <span className="text-blue-400">{(field.value || '').length}/500</span>
-                        </div>
-                      </FormItem>
-                    )}
+                          <FormControl>
+                            <div className="relative">
+                              <Textarea 
+                                {...field} 
+                                value={field.value || ''}
+                                placeholder={showAIButton && !contactId 
+                                  ? "Sélectionnez un contact pour activer la génération IA..." 
+                                  : "Notes ou détails supplémentaires..."
+                                }
+                                rows={4}
+                                className="resize-none min-h-[100px] bg-white/10 hover:bg-white/15 border border-white/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-200 rounded-xl text-white placeholder:text-white/40"
+                                style={{
+                                  borderImage: 'linear-gradient(to right, rgba(124, 58, 237, 0.3), rgba(59, 130, 246, 0.3)) 1'
+                                }}
+                              />
+                            </div>
+                          </FormControl>
+                          <div className="flex justify-between items-center text-xs">
+                            <div className="flex items-center gap-2">
+                              <FormMessage className="text-purple-400" />
+                              {aiGenerated && field.value && (
+                                <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 h-5">
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  DeepSeek IA
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-blue-400">{(field.value || '').length}/500</span>
+                          </div>
+                          
+                          {/* AI Message Generator Modal */}
+                          <AIMessageGenerator
+                            open={showAIGenerator}
+                            onOpenChange={setShowAIGenerator}
+                            contactId={contactId}
+                            propertyId={propertyId}
+                            activityType={activityType}
+                            onSelectMessage={(message) => {
+                              field.onChange(message);
+                              setAiGenerated(true);
+                            }}
+                          />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
 
