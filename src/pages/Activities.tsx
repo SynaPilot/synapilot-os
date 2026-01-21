@@ -1044,7 +1044,7 @@ export default function Activities() {
               features={[
                 { icon: <Phone className="w-6 h-6 text-purple-400" />, title: "Relances", desc: "Voir les contacts à relancer", iconBgClass: "bg-purple-500/20", onClick: () => navigate('/contacts?filter=to_follow_up') },
                 { icon: <Home className="w-6 h-6 text-blue-400" />, title: "Visites", desc: "Planifiez vos rendez-vous terrain", iconBgClass: "bg-blue-500/20", onClick: handleVisiteClick },
-                { icon: <Mail className="w-6 h-6 text-purple-400" />, title: "Emails", desc: "Suivez vos échanges clients", iconBgClass: "bg-purple-500/20" }
+                { icon: <Mail className="w-6 h-6 text-purple-400" />, title: "Emails IA", desc: "Templates intelligents", iconBgClass: "bg-purple-500/20", onClick: () => navigate('/emails-ia') }
               ]}
               className="py-8"
             />

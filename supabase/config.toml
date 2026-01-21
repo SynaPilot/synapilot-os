@@ -2,3 +2,6 @@ project_id = "gwcunpzacbzhoobpbjps"
 
 [functions.generate-ai-message]
 verify_jwt = false
+
+[functions.generate-email-template]
+verify_jwt = false
