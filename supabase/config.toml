@@ -1,1 +1,4 @@
-project_id = "svtwaxnaghrjyogcljnp"
+project_id = "gwcunpzacbzhoobpbjps"
+
+[functions.generate-ai-message]
+verify_jwt = false
