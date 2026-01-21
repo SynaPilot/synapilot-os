@@ -315,32 +315,25 @@ export default function EmailsIA() {
           </Button>
         </div>
 
-        {/* Filters */}
-        <Card className="p-4 bg-card/50 border-border/50">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher un template..."
-                className="pl-10 bg-background/50 border-border/50"
-              />
-            </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-full sm:w-64 bg-background/50 border-border/50">
-                <SelectValue placeholder="Catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(categoryLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label} ({getCategoryCount(value)})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
+        {/* Category Filter */}
+        <div className="flex items-center justify-between">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-72 bg-card border-border">
+              <SelectValue placeholder="Filtrer par catégorie" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              {Object.entries(categoryLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label} ({getCategoryCount(value)})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <p className="text-sm text-muted-foreground">
+            {filteredTemplates.length} template{filteredTemplates.length !== 1 ? 's' : ''}
+          </p>
+        </div>
 
         {/* Templates Grid */}
         {isLoading ? (
