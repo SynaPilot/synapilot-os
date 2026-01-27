@@ -117,8 +117,9 @@ const TRANSACTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   'viager': <Heart className="w-4 h-4" />,
 };
 
+// Schéma aligné sur la BDD externe (pas de title, pas de contact_id)
 const propertySchema = z.object({
-  title: z.string().min(5, 'Titre requis (min 5 caractères)').max(255),
+  address: z.string().min(5, 'Adresse requise (min 5 caractères)').max(255),
   type: z.enum(['appartement', 'maison', 'terrain', 'commerce', 'bureau', 'immeuble', 'parking', 'autre']),
   status: z.enum(['disponible', 'sous_compromis', 'vendu', 'loue', 'retire']),
   transaction_type: z.enum(['vente', 'location', 'viager']),
@@ -126,7 +127,6 @@ const propertySchema = z.object({
   surface: z.number().min(0).optional().nullable(),
   rooms: z.number().min(0).optional().nullable(),
   bedrooms: z.number().min(0).optional().nullable(),
-  contact_id: z.string().uuid().optional().nullable(),
   description: z.string().max(2000, 'Description trop longue (max 2000 caractères)').optional(),
 }).refine((data) => {
   // Bedrooms must be <= rooms if both are provided
@@ -176,7 +176,7 @@ function PropertyCard({ property, index, onClick }: { property: Property; index:
             </Badge>
             {property.type && <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}</Badge>}
           </div>
-          <p className="font-medium text-sm line-clamp-2 mb-2">{property.title}</p>
+          <p className="font-medium text-sm line-clamp-2 mb-2">{property.address || 'Adresse non définie'}</p>
           <p className="text-lg font-semibold text-blue-400 mb-3">
             {property.price ? formatCurrency(property.price) : 'Prix non défini'}
           </p>
@@ -223,10 +223,13 @@ export default function Properties() {
     ? (['properties', organizationId] as const) 
     : (['properties'] as const);
 
+  // State pour le contact sélectionné (owner_id dans la BDD)
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+
   const form = useForm<PropertyFormValues>({
     resolver: zodResolver(propertySchema),
     defaultValues: {
-      title: '',
+      address: '',
       type: 'appartement',
       status: 'disponible',
       transaction_type: 'vente',
@@ -234,7 +237,6 @@ export default function Properties() {
       surface: null,
       rooms: null,
       bedrooms: null,
-      contact_id: null,
       description: '',
     },
   });
@@ -264,32 +266,38 @@ export default function Properties() {
     mutationFn: async (values: PropertyFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
       
-      // Force owner_id (nom réel de la colonne dans la BDD)
-      const propertyData = {
-        title: values.title,
-        type: values.type,
-        status: values.status,
-        transaction_type: values.transaction_type,
-        price: values.price || null,
-        surface_m2: values.surface || null,
-        rooms: values.rooms || null,
-        bedrooms: values.bedrooms || null,
-        owner_id: values.contact_id || null, // owner_id est le nom réel en BDD
-        description: values.description || null,
+      // Objet d'insertion WHITELISTÉ : uniquement les colonnes existantes dans la BDD externe
+      // Colonnes valides : organization_id, address, type, status, price, surface, rooms, bedrooms, 
+      //                    description, transaction_type, contact_id (owner dans l'ancienne version)
+      const propertyInsert = {
         organization_id: organizationId,
-      } as any;
+        address: values.address || null,
+        type: values.type ?? null,
+        status: values.status ?? 'disponible',
+        transaction_type: values.transaction_type ?? 'vente',
+        price: values.price ?? null,
+        surface: values.surface ?? null,
+        rooms: values.rooms ?? null,
+        bedrooms: values.bedrooms ?? null,
+        description: values.description ?? null,
+        contact_id: selectedContactId || null, // contact lié optionnel
+      } as any; // bypass TypeScript si types obsolètes
+
+      // Logger anti-régression : vérifier les clés envoyées
+      console.log('properties.insert payload keys:', Object.keys(propertyInsert));
 
       const { error } = await supabase
         .from('properties')
-        .insert([propertyData]);
+        .insert([propertyInsert]);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: propertiesQueryKey });
       setIsDialogOpen(false);
+      setSelectedContactId(null);
       form.reset({
-        title: '',
+        address: '',
         type: 'appartement',
         status: 'disponible',
         transaction_type: 'vente',
@@ -297,7 +305,6 @@ export default function Properties() {
         surface: null,
         rooms: null,
         bedrooms: null,
-        contact_id: null,
         description: '',
       });
       toast.success('Bien créé avec succès', {
@@ -321,8 +328,8 @@ export default function Properties() {
   });
 
   const filteredProperties = properties?.filter((p) => {
-    const matchesSearch = (p.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
-                          (p.address?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+    const matchesSearch = (p.address?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                          (p.description?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -385,16 +392,16 @@ export default function Properties() {
                         <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-6">
                           <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-4">Informations principales</h3>
                           
-                          {/* Title */}
+                          {/* Address */}
                           <FormField
                             control={form.control}
-                            name="title"
+                            name="address"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-white font-semibold">Titre <span className="text-blue-400">*</span></FormLabel>
+                                <FormLabel className="text-white font-semibold">Adresse <span className="text-blue-400">*</span></FormLabel>
                                 <FormControl>
                                   <Input 
-                                    placeholder="Appartement T3 centre-ville" 
+                                    placeholder="123 Rue de la Paix, 75001 Paris" 
                                     {...field} 
                                     className={premiumInputClass}
                                   />
@@ -607,99 +614,90 @@ export default function Properties() {
                         <div className="border-l-2 border-blue-500/30 pl-4 bg-white/5 rounded-r-xl py-4 pr-4 space-y-6">
                           <h3 className="text-sm font-semibold text-blue-400/80 uppercase tracking-wider mb-4">Attribution</h3>
                           
-                          {/* Contact lié (Combobox recherchable) */}
-                          <FormField
-                            control={form.control}
-                            name="contact_id"
-                            render={({ field }) => (
-                              <FormItem className="flex flex-col">
-                                <FormLabel className="text-white font-semibold flex items-center gap-2">
-                                  <Users className="w-4 h-4 text-blue-400" />
-                                  Contact lié
-                                  <span className="text-xs text-muted-foreground font-normal">(Optionnel)</span>
-                                </FormLabel>
-                                <Popover open={openContactCombobox} onOpenChange={setOpenContactCombobox}>
-                                  <PopoverTrigger asChild>
-                                    <FormControl>
-                                      <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={openContactCombobox}
+                          {/* Contact lié (Combobox recherchable) - NON lié au schema react-hook-form */}
+                          <div className="flex flex-col gap-2">
+                            <label className="text-white font-semibold flex items-center gap-2 text-sm">
+                              <Users className="w-4 h-4 text-blue-400" />
+                              Contact lié
+                              <span className="text-xs text-muted-foreground font-normal">(Optionnel)</span>
+                            </label>
+                            <Popover open={openContactCombobox} onOpenChange={setOpenContactCombobox}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={openContactCombobox}
+                                  className={cn(
+                                    "w-full justify-between bg-white/5 border-white/10 hover:bg-white/10 text-left font-normal",
+                                    !selectedContactId && "text-muted-foreground"
+                                  )}
+                                >
+                                  {selectedContactId
+                                    ? contacts?.find((contact) => contact.id === selectedContactId)?.full_name
+                                    : "Rechercher un contact..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[400px] p-0 bg-[#1a1a1a] border-white/20" align="start">
+                                <Command className="bg-transparent">
+                                  <CommandInput placeholder="Rechercher un contact..." className="border-white/10" />
+                                  <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
+                                    Aucun contact trouvé.
+                                  </CommandEmpty>
+                                  <CommandGroup className="max-h-[300px] overflow-y-auto">
+                                    <CommandItem
+                                      value="aucun"
+                                      onSelect={() => {
+                                        setSelectedContactId(null);
+                                        setOpenContactCombobox(false);
+                                      }}
+                                      className="text-muted-foreground italic cursor-pointer hover:bg-white/10"
+                                    >
+                                      <Check
                                         className={cn(
-                                          "w-full justify-between bg-white/5 border-white/10 hover:bg-white/10 text-left font-normal",
-                                          !field.value && "text-muted-foreground"
+                                          "mr-2 h-4 w-4",
+                                          !selectedContactId ? "opacity-100" : "opacity-0"
                                         )}
+                                      />
+                                      Aucun contact
+                                    </CommandItem>
+                                    {contacts?.map((contact) => (
+                                      <CommandItem
+                                        key={contact.id}
+                                        value={contact.full_name}
+                                        onSelect={() => {
+                                          setSelectedContactId(contact.id);
+                                          setOpenContactCombobox(false);
+                                        }}
+                                        className="cursor-pointer hover:bg-white/10"
                                       >
-                                        {field.value
-                                          ? contacts?.find((contact) => contact.id === field.value)?.full_name
-                                          : "Rechercher un contact..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                      </Button>
-                                    </FormControl>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[400px] p-0 bg-[#1a1a1a] border-white/20" align="start">
-                                    <Command className="bg-transparent">
-                                      <CommandInput placeholder="Rechercher un contact..." className="border-white/10" />
-                                      <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
-                                        Aucun contact trouvé.
-                                      </CommandEmpty>
-                                      <CommandGroup className="max-h-[300px] overflow-y-auto">
-                                        <CommandItem
-                                          value="aucun"
-                                          onSelect={() => {
-                                            field.onChange(null);
-                                            setOpenContactCombobox(false);
-                                          }}
-                                          className="text-muted-foreground italic cursor-pointer hover:bg-white/10"
-                                        >
-                                          <Check
-                                            className={cn(
-                                              "mr-2 h-4 w-4",
-                                              !field.value ? "opacity-100" : "opacity-0"
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            selectedContactId === contact.id ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-semibold text-white">
+                                            {getInitials(contact.full_name)}
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-white">{contact.full_name}</span>
+                                            {contact.email && (
+                                              <span className="text-xs text-white/50">{contact.email}</span>
                                             )}
-                                          />
-                                          Aucun contact
-                                        </CommandItem>
-                                        {contacts?.map((contact) => (
-                                          <CommandItem
-                                            key={contact.id}
-                                            value={contact.full_name}
-                                            onSelect={() => {
-                                              field.onChange(contact.id);
-                                              setOpenContactCombobox(false);
-                                            }}
-                                            className="cursor-pointer hover:bg-white/10"
-                                          >
-                                            <Check
-                                              className={cn(
-                                                "mr-2 h-4 w-4",
-                                                field.value === contact.id ? "opacity-100" : "opacity-0"
-                                              )}
-                                            />
-                                            <div className="flex items-center gap-3">
-                                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-semibold text-white">
-                                                {getInitials(contact.full_name)}
-                                              </div>
-                                              <div className="flex flex-col">
-                                                <span className="text-white">{contact.full_name}</span>
-                                                {contact.email && (
-                                                  <span className="text-xs text-white/50">{contact.email}</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </CommandItem>
-                                        ))}
-                                      </CommandGroup>
-                                    </Command>
-                                  </PopoverContent>
-                                </Popover>
-                                <p className="text-xs text-muted-foreground">
-                                  Lier ce bien à un propriétaire ou prospect existant
-                                </p>
-                                <FormMessage className="text-purple-400 bg-purple-500/10 px-2 py-1 rounded" />
-                              </FormItem>
-                            )}
-                          />
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <p className="text-xs text-muted-foreground">
+                              Lier ce bien à un propriétaire ou prospect existant
+                            </p>
+                          </div>
 
                           {/* Description with character counter */}
                           <FormField
