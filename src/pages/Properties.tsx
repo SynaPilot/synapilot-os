@@ -278,7 +278,7 @@ export default function Properties() {
           contact_id: values.contact_id || null,
           description: values.description || null,
           organization_id: organizationId,
-        }]);
+        } as any]);
 
       if (error) throw error;
     },
