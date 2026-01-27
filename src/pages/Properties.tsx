@@ -20,12 +20,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { cn } from '@/lib/utils';
 import { 
   Plus, 
   Search, 
@@ -50,8 +63,9 @@ import {
   Maximize,
   Grid3X3,
   Users,
-  UserCheck,
-  FileText
+  FileText,
+  Check,
+  ChevronsUpDown
 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
@@ -113,7 +127,6 @@ const propertySchema = z.object({
   rooms: z.number().min(0).optional().nullable(),
   bedrooms: z.number().min(0).optional().nullable(),
   contact_id: z.string().uuid().optional().nullable(),
-  assigned_to: z.string().uuid().optional().nullable(),
   description: z.string().max(2000, 'Description trop longue (max 2000 caractères)').optional(),
 }).refine((data) => {
   // Bedrooms must be <= rooms if both are provided
@@ -222,7 +235,6 @@ export default function Properties() {
       rooms: null,
       bedrooms: null,
       contact_id: null,
-      assigned_to: user?.id || null,
       description: '',
     },
   });
@@ -239,18 +251,14 @@ export default function Properties() {
     orderBy: { column: 'created_at', ascending: false }
   });
 
-  // Fetch contacts with role 'vendeur' for owner selection
-  const { data: vendeurs } = useOrgQuery<Contact[]>('contacts', {
-    select: 'id, full_name, email',
-    filters: { role: 'vendeur' },
+  // Fetch all contacts for owner selection (removed role filter - was causing enum error)
+  const { data: contacts } = useOrgQuery<Contact[]>('contacts', {
+    select: 'id, full_name, email, role',
     orderBy: { column: 'full_name', ascending: true }
   });
 
-  // Fetch profiles for agent assignment
-  const { data: profiles } = useOrgQuery<Profile[]>('profiles', {
-    select: 'id, full_name, email',
-    orderBy: { column: 'full_name', ascending: true }
-  });
+  // State for contact combobox
+  const [openContactCombobox, setOpenContactCombobox] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: async (values: PropertyFormValues) => {
@@ -268,7 +276,6 @@ export default function Properties() {
           rooms: values.rooms || null,
           bedrooms: values.bedrooms || null,
           contact_id: values.contact_id || null,
-          assigned_to: values.assigned_to || null,
           description: values.description || null,
           organization_id: organizationId,
         }]);
@@ -288,7 +295,6 @@ export default function Properties() {
         rooms: null,
         bedrooms: null,
         contact_id: null,
-        assigned_to: user?.id || null,
         description: '',
       });
       toast.success('Bien créé avec succès', {
@@ -598,74 +604,95 @@ export default function Properties() {
                         <div className="border-l-2 border-blue-500/30 pl-4 bg-white/5 rounded-r-xl py-4 pr-4 space-y-6">
                           <h3 className="text-sm font-semibold text-blue-400/80 uppercase tracking-wider mb-4">Attribution</h3>
                           
-                          {/* Owner (contact_id) */}
+                          {/* Contact lié (Combobox recherchable) */}
                           <FormField
                             control={form.control}
                             name="contact_id"
                             render={({ field }) => (
-                              <FormItem>
+                              <FormItem className="flex flex-col">
                                 <FormLabel className="text-white font-semibold flex items-center gap-2">
                                   <Users className="w-4 h-4 text-blue-400" />
-                                  Propriétaire
+                                  Contact lié
+                                  <span className="text-xs text-muted-foreground font-normal">(Optionnel)</span>
                                 </FormLabel>
-                                <Select onValueChange={(val) => field.onChange(val === 'none' ? null : val)} value={field.value || 'none'}>
-                                  <FormControl>
-                                    <SelectTrigger className={premiumSelectTriggerClass}>
-                                      <SelectValue placeholder="Rechercher..." className="italic" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent className="bg-[#1a1a1a] border-white/20">
-                                    <SelectItem value="none" className="hover:bg-blue-500/10 text-white">Aucun</SelectItem>
-                                    {vendeurs?.map((contact) => (
-                                      <SelectItem key={contact.id} value={contact.id} className="hover:bg-blue-500/10">
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-semibold text-white">
-                                            {getInitials(contact.full_name)}
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <span className="text-white">{contact.full_name}</span>
-                                            {contact.email && <span className="text-xs text-white/50">{contact.email}</span>}
-                                          </div>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage className="text-purple-400 bg-purple-500/10 px-2 py-1 rounded" />
-                              </FormItem>
-                            )}
-                          />
-
-                          {/* Assigned Agent */}
-                          <FormField
-                            control={form.control}
-                            name="assigned_to"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-white font-semibold flex items-center gap-2">
-                                  <UserCheck className="w-4 h-4 text-blue-400" />
-                                  Agent assigné
-                                </FormLabel>
-                                <Select onValueChange={(val) => field.onChange(val === 'none' ? null : val)} value={field.value || 'none'}>
-                                  <FormControl>
-                                    <SelectTrigger className={premiumSelectTriggerClass}>
-                                      <SelectValue placeholder="Sélectionner un agent" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent className="bg-[#1a1a1a] border-white/20">
-                                    <SelectItem value="none" className="hover:bg-blue-500/10 text-white">Aucun</SelectItem>
-                                    {profiles?.map((profile) => (
-                                      <SelectItem key={profile.id} value={profile.id} className="hover:bg-blue-500/10">
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-semibold text-white">
-                                            {getInitials(profile.full_name)}
-                                          </div>
-                                          <span className="text-white">{profile.full_name || profile.email || 'Agent'}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Popover open={openContactCombobox} onOpenChange={setOpenContactCombobox}>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={openContactCombobox}
+                                        className={cn(
+                                          "w-full justify-between bg-white/5 border-white/10 hover:bg-white/10 text-left font-normal",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        {field.value
+                                          ? contacts?.find((contact) => contact.id === field.value)?.full_name
+                                          : "Rechercher un contact..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[400px] p-0 bg-[#1a1a1a] border-white/20" align="start">
+                                    <Command className="bg-transparent">
+                                      <CommandInput placeholder="Rechercher un contact..." className="border-white/10" />
+                                      <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
+                                        Aucun contact trouvé.
+                                      </CommandEmpty>
+                                      <CommandGroup className="max-h-[300px] overflow-y-auto">
+                                        <CommandItem
+                                          value="aucun"
+                                          onSelect={() => {
+                                            field.onChange(null);
+                                            setOpenContactCombobox(false);
+                                          }}
+                                          className="text-muted-foreground italic cursor-pointer hover:bg-white/10"
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              !field.value ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          Aucun contact
+                                        </CommandItem>
+                                        {contacts?.map((contact) => (
+                                          <CommandItem
+                                            key={contact.id}
+                                            value={contact.full_name}
+                                            onSelect={() => {
+                                              field.onChange(contact.id);
+                                              setOpenContactCombobox(false);
+                                            }}
+                                            className="cursor-pointer hover:bg-white/10"
+                                          >
+                                            <Check
+                                              className={cn(
+                                                "mr-2 h-4 w-4",
+                                                field.value === contact.id ? "opacity-100" : "opacity-0"
+                                              )}
+                                            />
+                                            <div className="flex items-center gap-3">
+                                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs font-semibold text-white">
+                                                {getInitials(contact.full_name)}
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-white">{contact.full_name}</span>
+                                                {contact.email && (
+                                                  <span className="text-xs text-white/50">{contact.email}</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
+                                <p className="text-xs text-muted-foreground">
+                                  Lier ce bien à un propriétaire ou prospect existant
+                                </p>
                                 <FormMessage className="text-purple-400 bg-purple-500/10 px-2 py-1 rounded" />
                               </FormItem>
                             )}
