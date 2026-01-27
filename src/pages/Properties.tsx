@@ -264,21 +264,24 @@ export default function Properties() {
     mutationFn: async (values: PropertyFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
       
+      // Force owner_id (nom réel de la colonne dans la BDD)
+      const propertyData = {
+        title: values.title,
+        type: values.type,
+        status: values.status,
+        transaction_type: values.transaction_type,
+        price: values.price || null,
+        surface_m2: values.surface || null,
+        rooms: values.rooms || null,
+        bedrooms: values.bedrooms || null,
+        owner_id: values.contact_id || null, // owner_id est le nom réel en BDD
+        description: values.description || null,
+        organization_id: organizationId,
+      } as any;
+
       const { error } = await supabase
         .from('properties')
-        .insert([{
-          title: values.title,
-          type: values.type,
-          status: values.status,
-          transaction_type: values.transaction_type,
-          price: values.price || null,
-          surface: values.surface || null,
-          rooms: values.rooms || null,
-          bedrooms: values.bedrooms || null,
-          contact_id: values.contact_id || null,
-          description: values.description || null,
-          organization_id: organizationId,
-        } as any]);
+        .insert([propertyData]);
 
       if (error) throw error;
     },
