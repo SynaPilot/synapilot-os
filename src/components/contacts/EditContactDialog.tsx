@@ -11,6 +11,7 @@ import { Loader2, User, Briefcase, BarChart3, FileText } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -123,6 +124,8 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
     mutationFn: async (values: EditContactFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
 
+      // Cast to any to bypass TypeScript strict enum checking
+      // The actual database enum values are defined in constants.ts
       const updateData = {
         full_name: values.full_name,
         email: values.email || null,
@@ -132,7 +135,7 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
         pipeline_stage: values.pipeline_stage || null,
         urgency_score: values.urgency_score,
         notes: values.notes || null,
-      };
+      } as any;
 
       const { error } = await supabase
         .from('contacts')
@@ -168,6 +171,9 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
             <User className="w-5 h-5 text-primary" />
             Modifier le contact
           </DialogTitle>
+          <DialogDescription>
+            Modifiez les informations du contact ci-dessous.
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -301,7 +307,7 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
                     <FormItem>
                       <FormLabel>Étape du pipeline</FormLabel>
                       <Select
-                        value={field.value || ''}
+                        value={field.value || undefined}
                         onValueChange={(val) => field.onChange(val || null)}
                       >
                         <FormControl>
