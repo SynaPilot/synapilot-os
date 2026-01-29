@@ -76,6 +76,7 @@ import { CONTACT_ROLES, ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_PRIORITIE
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AIMessageGenerator } from '@/components/activities/AIMessageGenerator';
+import { EditContactDialog } from '@/components/contacts/EditContactDialog';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -183,6 +184,7 @@ export default function ContactDetail() {
   const queryClient = useQueryClient();
   const { organizationId } = useAuth();
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [localNotes, setLocalNotes] = useState<string | null>(null);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
@@ -472,7 +474,12 @@ export default function ContactDetail() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => setIsEditDialogOpen(true)}
+              >
                 <Edit className="w-4 h-4" />
                 Modifier
               </Button>
@@ -1020,6 +1027,13 @@ export default function ContactDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Contact Dialog */}
+      <EditContactDialog
+        contact={contact}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+      />
     </motion.div>
   );
 }
