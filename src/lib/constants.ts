@@ -136,31 +136,5 @@ export const ACTIVITY_STATUS_LABELS: Record<ActivityStatus, string> = {
   annule: 'Annulé',
 };
 
-// Utility functions
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(date));
-}
-
-export function formatRelativeDate(date: string | Date): string {
-  const now = new Date();
-  const d = new Date(date);
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return "Aujourd'hui";
-  if (diffDays === 1) return 'Hier';
-  if (diffDays < 7) return `Il y a ${diffDays} jours`;
-  if (diffDays < 30) return `Il y a ${Math.floor(diffDays / 7)} semaines`;
-  return formatDate(date);
-}
+// Re-export formatters from dedicated module (DRY principle)
+export { formatCurrency, formatDate, formatRelativeTime as formatRelativeDate } from './formatters';
