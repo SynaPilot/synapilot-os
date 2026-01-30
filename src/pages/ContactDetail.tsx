@@ -211,7 +211,7 @@ export default function ContactDetail() {
     'activities',
     {
       select: '*, profiles:assigned_to(full_name)',
-      filters: { related_contact_id: id },
+      filters: { contact_id: id },
       orderBy: { column: 'date', ascending: false },
     },
     {
