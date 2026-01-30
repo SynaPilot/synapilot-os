@@ -117,17 +117,18 @@ const TRANSACTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   'viager': <Heart className="w-4 h-4" />,
 };
 
-// Schéma aligné sur la BDD externe (pas de title, pas de contact_id)
+// Schema aligned with Supabase types.ts - title is required
 const propertySchema = z.object({
-  address: z.string().min(5, 'Adresse requise (min 5 caractères)').max(255),
+  title: z.string().min(3, 'Titre requis (min 3 caractères)').max(255),
+  address: z.string().max(255).optional().nullable(),
   type: z.enum(['appartement', 'maison', 'terrain', 'commerce', 'bureau', 'immeuble', 'parking', 'autre']),
   status: z.enum(['disponible', 'sous_compromis', 'vendu', 'loue', 'retire']),
   transaction_type: z.enum(['vente', 'location', 'viager']),
-  price: z.number().min(0, 'Prix invalide').optional(),
+  price: z.number().min(0, 'Prix invalide').optional().nullable(),
   surface: z.number().min(0).optional().nullable(),
   rooms: z.number().min(0).optional().nullable(),
   bedrooms: z.number().min(0).optional().nullable(),
-  description: z.string().max(2000, 'Description trop longue (max 2000 caractères)').optional(),
+  description: z.string().max(2000, 'Description trop longue (max 2000 caractères)').optional().nullable(),
 }).refine((data) => {
   // Bedrooms must be <= rooms if both are provided
   if (data.bedrooms && data.rooms && data.bedrooms > data.rooms) {
@@ -176,7 +177,10 @@ function PropertyCard({ property, index, onClick }: { property: Property; index:
             </Badge>
             {property.type && <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}</Badge>}
           </div>
-          <p className="font-medium text-sm line-clamp-2 mb-2">{property.address || 'Adresse non définie'}</p>
+          <p className="font-medium text-sm line-clamp-2 mb-1">{property.title || 'Bien sans titre'}</p>
+          {property.address && (
+            <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{property.address}</p>
+          )}
           <p className="text-lg font-semibold text-blue-400 mb-3">
             {property.price ? formatCurrency(property.price) : 'Prix non défini'}
           </p>
@@ -229,15 +233,16 @@ export default function Properties() {
   const form = useForm<PropertyFormValues>({
     resolver: zodResolver(propertySchema),
     defaultValues: {
-      address: '',
+      title: '',
+      address: null,
       type: 'appartement',
       status: 'disponible',
       transaction_type: 'vente',
-      price: undefined,
+      price: null,
       surface: null,
       rooms: null,
       bedrooms: null,
-      description: '',
+      description: null,
     },
   });
 
@@ -266,11 +271,10 @@ export default function Properties() {
     mutationFn: async (values: PropertyFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
       
-      // Objet d'insertion WHITELISTÉ : uniquement les colonnes existantes dans la BDD externe
-      // Colonnes valides : organization_id, address, type, status, price, surface, rooms, bedrooms, 
-      //                    description, transaction_type, contact_id (owner dans l'ancienne version)
-      const propertyInsert = {
+      // Type-safe insert using TablesInsert - aligned with Supabase schema
+      const propertyInsert: Partial<Property> & { organization_id: string; title: string } = {
         organization_id: organizationId,
+        title: values.title, // Required field
         address: values.address || null,
         type: values.type ?? null,
         status: values.status ?? 'disponible',
@@ -280,11 +284,8 @@ export default function Properties() {
         rooms: values.rooms ?? null,
         bedrooms: values.bedrooms ?? null,
         description: values.description ?? null,
-        contact_id: selectedContactId || null, // contact lié optionnel
-      } as any; // bypass TypeScript si types obsolètes
-
-      // Logger anti-régression : vérifier les clés envoyées
-      console.log('properties.insert payload keys:', Object.keys(propertyInsert));
+        contact_id: selectedContactId || null,
+      };
 
       const { error } = await supabase
         .from('properties')
@@ -297,15 +298,16 @@ export default function Properties() {
       setIsDialogOpen(false);
       setSelectedContactId(null);
       form.reset({
-        address: '',
+        title: '',
+        address: null,
         type: 'appartement',
         status: 'disponible',
         transaction_type: 'vente',
-        price: undefined,
+        price: null,
         surface: null,
         rooms: null,
         bedrooms: null,
-        description: '',
+        description: null,
       });
       toast.success('Bien créé avec succès', {
         style: {
@@ -392,17 +394,38 @@ export default function Properties() {
                         <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-6">
                           <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-4">Informations principales</h3>
                           
-                          {/* Address */}
+                          {/* Title (required) */}
+                          <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-white font-semibold">Titre du bien <span className="text-blue-400">*</span></FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder="Appartement T3 lumineux - Centre-ville" 
+                                    {...field} 
+                                    className={premiumInputClass}
+                                  />
+                                </FormControl>
+                                <FormMessage className="text-purple-400 bg-purple-500/10 px-2 py-1 rounded" />
+                              </FormItem>
+                            )}
+                          />
+
+                          {/* Address (optional now) */}
                           <FormField
                             control={form.control}
                             name="address"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-white font-semibold">Adresse <span className="text-blue-400">*</span></FormLabel>
+                                <FormLabel className="text-white font-semibold">Adresse</FormLabel>
                                 <FormControl>
                                   <Input 
                                     placeholder="123 Rue de la Paix, 75001 Paris" 
-                                    {...field} 
+                                    {...field}
+                                    value={field.value || ''}
+                                    onChange={(e) => field.onChange(e.target.value || null)}
                                     className={premiumInputClass}
                                   />
                                 </FormControl>

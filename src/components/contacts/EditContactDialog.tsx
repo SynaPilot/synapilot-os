@@ -124,9 +124,9 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
     mutationFn: async (values: EditContactFormValues) => {
       if (!organizationId) throw new Error('Organisation non trouvée');
 
-      // Cast to any to bypass TypeScript strict enum checking
-      // The actual database enum values are defined in constants.ts
-      const updateData = {
+      // Use TablesUpdate type for type-safe updates
+      // Pipeline stages and roles are validated by Zod schema which matches DB enums
+      const updateData: Partial<Contact> = {
         full_name: values.full_name,
         email: values.email || null,
         phone: values.phone || null,
@@ -135,7 +135,7 @@ export function EditContactDialog({ contact, open, onOpenChange }: EditContactDi
         pipeline_stage: values.pipeline_stage || null,
         urgency_score: values.urgency_score,
         notes: values.notes || null,
-      } as any;
+      };
 
       const { error } = await supabase
         .from('contacts')
