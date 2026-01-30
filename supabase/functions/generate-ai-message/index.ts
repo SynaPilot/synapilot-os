@@ -18,6 +18,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const deepseekKey = Deno.env.get('DEEPSEEK_API_KEY');
 
     if (!deepseekKey) {
@@ -28,6 +29,38 @@ serve(async (req) => {
       );
     }
 
+    // ========== JWT AUTHENTICATION ==========
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.error('Missing or invalid Authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Non autorisé - Token manquant' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create client with user's token to validate it
+    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await userSupabase.auth.getUser(token);
+    
+    if (claimsError || !claimsData?.user) {
+      console.error('JWT validation failed:', claimsError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Non autorisé - Token invalide' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.user.id;
+    console.log('Authenticated user:', userId);
+
+    // ========== END JWT AUTHENTICATION ==========
+
+    // Service role client for admin operations
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { 
@@ -38,6 +71,29 @@ serve(async (req) => {
       additional_context,
       user_name 
     } = await req.json();
+
+    // Verify user belongs to the organization
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError || !userProfile) {
+      console.error('Profile fetch failed:', profileError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Profil utilisateur non trouvé' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (userProfile.organization_id !== organization_id) {
+      console.error('Organization mismatch:', { user: userProfile.organization_id, requested: organization_id });
+      return new Response(
+        JSON.stringify({ error: 'Accès non autorisé à cette organisation' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log('Generating AI message for:', { organization_id, contact_id, activity_type });
 

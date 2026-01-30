@@ -59,7 +59,7 @@ export default function Dashboard() {
 
   // Fetch activities with useOrgQuery
   const { data: activities, isLoading: activitiesLoading } = useOrgQuery<Activity[]>('activities', {
-    select: '*, contacts:related_contact_id(full_name)',
+    select: '*, contacts:contact_id(full_name)',
     orderBy: { column: 'date', ascending: false },
     limit: 10
   }, {
