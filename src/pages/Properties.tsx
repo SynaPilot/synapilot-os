@@ -65,7 +65,8 @@ import {
   Users,
   FileText,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  RefreshCw
 } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
@@ -813,7 +814,8 @@ export default function Properties() {
               <PropertyCardSkeleton key={i} />
             ))}
           </div>
-        ) : filteredProperties?.length === 0 ? (
+        ) : !properties || properties.length === 0 ? (
+          /* Empty state - no properties at all (welcome screen) */
           <EmptyState
             icon={Home}
             iconGradient="from-blue-500/20 to-purple-500/20"
@@ -834,6 +836,22 @@ export default function Properties() {
               { icon: <MapPin className="w-5 h-5 text-purple-400" />, title: "Géolocalisation", desc: "Cartographie intégrée" },
               { icon: <Share2 className="w-5 h-5 text-blue-400" />, title: "Partage clients", desc: "Envoyez en un clic" }
             ]}
+          />
+        ) : filteredProperties?.length === 0 ? (
+          /* Empty state - no results after filtering */
+          <EmptyState
+            icon={Search}
+            iconGradient="from-purple-500/20 to-blue-500/20"
+            title="Aucun bien trouvé"
+            description="Essayez de modifier vos critères de recherche ou réinitialisez les filtres."
+            action={{
+              label: "Réinitialiser les filtres",
+              onClick: () => {
+                setSearchQuery('');
+                setStatusFilter('all');
+              },
+              icon: <RefreshCw className="w-5 h-5" />
+            }}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
