@@ -14,19 +14,47 @@ import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Lazy load pages for code splitting
-const Login = lazy(() => import("./pages/Login"));
-const Signup = lazy(() => import("./pages/Signup"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Contacts = lazy(() => import("./pages/Contacts"));
-const ContactDetail = lazy(() => import("./pages/ContactDetail"));
-const Properties = lazy(() => import("./pages/Properties"));
-const Deals = lazy(() => import("./pages/Deals"));
-const Activities = lazy(() => import("./pages/Activities"));
-const Stats = lazy(() => import("./pages/Stats"));
-const Settings = lazy(() => import("./pages/Settings"));
-const EmailsIA = lazy(() => import("./pages/EmailsIA"));
+// Lazy load pages for code splitting with prefetch support
+const lazyWithPrefetch = <T extends React.ComponentType>(
+  factory: () => Promise<{ default: T }>
+) => {
+  const Component = lazy(factory);
+  // Attach prefetch method for route preloading
+  (Component as { prefetch?: () => void }).prefetch = () => {
+    factory();
+  };
+  return Component;
+};
+
+// Core pages - prefetchable
+const Login = lazyWithPrefetch(() => import("./pages/Login"));
+const Signup = lazyWithPrefetch(() => import("./pages/Signup"));
+const Dashboard = lazyWithPrefetch(() => import("./pages/Dashboard"));
+const Contacts = lazyWithPrefetch(() => import("./pages/Contacts"));
+const ContactDetail = lazyWithPrefetch(() => import("./pages/ContactDetail"));
+const Properties = lazyWithPrefetch(() => import("./pages/Properties"));
+const Deals = lazyWithPrefetch(() => import("./pages/Deals"));
+const Activities = lazyWithPrefetch(() => import("./pages/Activities"));
+const Stats = lazyWithPrefetch(() => import("./pages/Stats"));
+const Settings = lazyWithPrefetch(() => import("./pages/Settings"));
+const EmailsIA = lazyWithPrefetch(() => import("./pages/EmailsIA"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Prefetch critical routes after initial load
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', () => {
+    // Wait for idle time to prefetch main routes
+    requestIdleCallback?.(() => {
+      [Dashboard, Contacts, Properties, Deals, Activities].forEach((Component) => {
+        (Component as { prefetch?: () => void }).prefetch?.();
+      });
+    }) || setTimeout(() => {
+      [Dashboard, Contacts, Properties, Deals, Activities].forEach((Component) => {
+        (Component as { prefetch?: () => void }).prefetch?.();
+      });
+    }, 2000);
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
