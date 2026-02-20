@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_projects",
+      "mcp__supabase__apply_migration",
+      "WebFetch(domain:api.cquest.org)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.gouv.fr)",
+      "WebFetch(domain:apidf-preprod.cerema.fr)",
+      "WebFetch(domain:app.dvf.etalab.gouv.fr)",
+      "WebFetch(domain:stream.estate)",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__supabase__generate_typescript_types",
+      "Bash(npm run build:*)",
+      "mcp__supabase__get_advisors",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nIntegrate real DVF market data into Market Pulse widget\n\nReplace hardcoded mock data with live DVF API integration:\n- Add market_stats_cache table with RLS for caching DVF results\n- Create fetch-market-data Edge Function \\(cache-first, 30-day TTL\\)\n- Refactor MarketPulse.tsx with postal code search, real KPIs, and\n  graceful error/empty states\n- Update Supabase types with market_stats_cache schema\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

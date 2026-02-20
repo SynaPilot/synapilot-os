@@ -1,0 +1,10 @@
+project_id = "gwcunpzacbzhoobpbjps"
+
+[functions.fetch-market-data]
+verify_jwt = false
+
+[functions.generate-ai-message]
+verify_jwt = false
+
+[functions.generate-email-template]
+verify_jwt = false
