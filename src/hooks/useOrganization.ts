@@ -13,7 +13,7 @@ export function useOrganization() {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('organization_id')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (profileError) throw profileError;
@@ -43,7 +43,7 @@ export function useProfile() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*, user_roles(role)')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
