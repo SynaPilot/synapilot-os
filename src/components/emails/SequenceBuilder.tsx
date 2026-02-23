@@ -49,7 +49,7 @@ import {
   type SequenceStep,
   type SequenceTemplate,
 } from '@/lib/email-templates';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Tables, TablesInsert, Json } from '@/integrations/supabase/types';
 
 type Contact = Tables<'contacts'>;
 
@@ -173,17 +173,17 @@ export function SequenceBuilder({ onEnrollContact }: SequenceBuilderProps) {
         .eq('user_id', user?.id || '')
         .single();
 
-      const insertData = {
+      const insertData: TablesInsert<'email_sequences'> = {
         organization_id: organizationId!,
         name: sequenceName,
         description: sequenceDescription || null,
-        steps: steps,
+        steps: steps as unknown as Json,
         category: 'custom',
         is_active: true,
         created_by: profileData?.id || null,
       };
-      
-      const { error } = await supabase.from('email_sequences').insert(insertData as any);
+
+      const { error } = await supabase.from('email_sequences').insert(insertData);
 
       toast.success('Séquence créée avec succès !');
       queryClient.invalidateQueries({ queryKey: ['email_sequences', organizationId] });
@@ -211,16 +211,16 @@ export function SequenceBuilder({ onEnrollContact }: SequenceBuilderProps) {
       const nextSendAt = new Date();
       nextSendAt.setDate(nextSendAt.getDate() + (firstStep?.delay_days || 0));
 
-      const enrollmentData = {
+      const enrollmentData: TablesInsert<'sequence_enrollments'> = {
         sequence_id: selectedSequence.id,
         contact_id: selectedContactId,
-        organization_id: organizationId,
+        organization_id: organizationId!,
         current_step: 0,
         status: 'active',
         next_send_at: nextSendAt.toISOString(),
       };
-      
-      const { error } = await supabase.from('sequence_enrollments').insert(enrollmentData as any);
+
+      const { error } = await supabase.from('sequence_enrollments').insert(enrollmentData);
 
       if (error) {
         if (error.code === '23505') {

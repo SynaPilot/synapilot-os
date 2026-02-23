@@ -484,7 +484,9 @@ export default function EmailsIA() {
 
           {/* Sequences Tab */}
           <TabsContent value="sequences" className="mt-6">
-            <SequenceBuilder />
+            <SequenceBuilder onEnrollContact={(_sequenceId, _contactId) => {
+              // Callback available for parent-level side effects (e.g., navigate to contact)
+            }} />
           </TabsContent>
         </Tabs>
 

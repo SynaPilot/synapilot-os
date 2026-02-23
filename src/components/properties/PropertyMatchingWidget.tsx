@@ -176,6 +176,7 @@ function BuyerCard({
   selected,
   onToggleSelect,
   alreadyContacted,
+  onSendProposal,
 }: {
   match: MatchResult;
   onContact?: (contactId: string) => void;
@@ -183,6 +184,7 @@ function BuyerCard({
   selected: boolean;
   onToggleSelect: (contactId: string) => void;
   alreadyContacted: boolean;
+  onSendProposal?: () => Promise<void>;
 }) {
   const { contact } = match.search;
   const initials = contact.full_name
@@ -192,6 +194,7 @@ function BuyerCard({
     .toUpperCase()
     .slice(0, 2);
 
+  const [isSendingProposal, setIsSendingProposal] = useState(false);
   const { create: createActivity, isCreating } = useActivities();
 
   const handleLogActivity = async () => {
@@ -283,7 +286,7 @@ function BuyerCard({
             )}
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {contact.email && (
                 <Button
                   variant="outline"
@@ -310,6 +313,38 @@ function BuyerCard({
                   </a>
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 text-xs ${alreadyContacted ? 'text-green-500 border-green-500/30' : 'text-blue-400 border-blue-500/30 hover:bg-blue-500/10'}`}
+                disabled={alreadyContacted || isSendingProposal}
+                onClick={async () => {
+                  if (!onSendProposal) return;
+                  setIsSendingProposal(true);
+                  try {
+                    await onSendProposal();
+                  } finally {
+                    setIsSendingProposal(false);
+                  }
+                }}
+              >
+                {alreadyContacted ? (
+                  <>
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                    Envoyée
+                  </>
+                ) : isSendingProposal ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Envoi...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                    Envoyer une proposition
+                  </>
+                )}
+              </Button>
               <Button
                 variant="default"
                 size="sm"
@@ -613,6 +648,24 @@ export function PropertyMatchingWidget({ property, onContactBuyer }: PropertyMat
     );
   }, []);
 
+  const handleSendSingleProposal = useCallback(async (contactId: string, contactName: string) => {
+    if (!organizationId) return;
+    const { error: fnError } = await supabase.functions.invoke('send-property-proposal', {
+      body: { property_id: property.id, contact_id: contactId, organization_id: organizationId },
+    });
+    if (fnError) throw fnError;
+    const { error: insertError } = await supabase.from('property_proposals').insert({
+      property_id: property.id,
+      contact_id: contactId,
+      organization_id: organizationId,
+      sent_at: new Date().toISOString(),
+      template_id: null,
+    });
+    if (insertError) throw insertError;
+    toast.success(`Proposition envoyée à ${contactName} ✅`);
+    setContactedIds(prev => new Set([...prev, contactId]));
+  }, [organizationId, property.id]);
+
   const handleSendSuccess = useCallback(() => {
     // Refresh contacted IDs
     if (property?.id && organizationId) {
@@ -667,6 +720,9 @@ export function PropertyMatchingWidget({ property, onContactBuyer }: PropertyMat
       selected={selectedBuyers.includes(match.search.contact.id)}
       onToggleSelect={toggleBuyer}
       alreadyContacted={contactedIds.has(match.search.contact.id)}
+      onSendProposal={async () => {
+        await handleSendSingleProposal(match.search.contact.id, match.search.contact.full_name);
+      }}
     />
   );
 
