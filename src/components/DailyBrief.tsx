@@ -337,7 +337,7 @@ export function DailyBrief({ className }: Props) {
 
   return (
     <motion.div
-      className={cn(className)}
+      className={cn("flex flex-col", className)}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
