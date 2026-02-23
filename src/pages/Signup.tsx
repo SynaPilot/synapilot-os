@@ -21,7 +21,7 @@ const signupSchema = z.object({
   agencyName: z.string().min(2, 'Minimum 2 caractères').max(100, 'Maximum 100 caractères'),
   email: z.string().email('Email invalide'),
   password: z.string().min(6, 'Minimum 6 caractères'),
-  activationKey: z.string().optional(),
+  activationKey: z.string().min(1, 'La clé d\'activation est requise'),
 });
 
 const inviteSchema = z.object({
@@ -37,7 +37,7 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 type InviteFormValues = z.infer<typeof inviteSchema>;
 
 // BYPASS FLAG
-const BYPASS_ACTIVATION_KEY = true;
+const BYPASS_ACTIVATION_KEY = false;
 
 // ==================== INVITE FLOW COMPONENT ====================
 function InviteFlow() {
@@ -653,7 +653,7 @@ export default function Signup() {
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       <Key className="w-4 h-4" />
-                      Clé d'Activation
+                      Clé d'Activation *
                     </FormLabel>
                     <FormControl>
                       <Input

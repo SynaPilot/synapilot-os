@@ -559,6 +559,79 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
+          {/* ── TIER 1.05: Contextual Empty State CTAs ── */}
+          {!isLoading && (
+            contacts?.length === 0 || properties?.length === 0 ||
+            deals?.length === 0 || activities?.length === 0
+          ) && (
+            <motion.div variants={tierVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {contacts?.length === 0 && (
+                <Card
+                  className="glass border-blue-500/20 cursor-pointer hover:border-blue-500/40 transition-colors"
+                  onClick={() => navigate('/contacts')}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+                    <div className="p-3 rounded-full bg-blue-500/10">
+                      <UserPlus className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <p className="font-medium text-sm">Aucun contact pour l'instant</p>
+                    <Button size="sm" variant="outline" className="w-full pointer-events-none">
+                      Ajouter un contact
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {properties?.length === 0 && (
+                <Card
+                  className="glass border-amber-500/20 cursor-pointer hover:border-amber-500/40 transition-colors"
+                  onClick={() => navigate('/biens')}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+                    <div className="p-3 rounded-full bg-amber-500/10">
+                      <Home className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <p className="font-medium text-sm">Aucun bien dans votre portefeuille</p>
+                    <Button size="sm" variant="outline" className="w-full pointer-events-none">
+                      Ajouter un bien
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {deals?.length === 0 && (
+                <Card
+                  className="glass border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => navigate('/deals')}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+                    <div className="p-3 rounded-full bg-primary/10">
+                      <TrendingUp className="w-6 h-6 text-primary" />
+                    </div>
+                    <p className="font-medium text-sm">Aucune affaire en cours</p>
+                    <Button size="sm" variant="outline" className="w-full pointer-events-none">
+                      Créer une affaire
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              {activities?.length === 0 && (
+                <Card
+                  className="glass border-purple-500/20 cursor-pointer hover:border-purple-500/40 transition-colors"
+                  onClick={() => navigate('/activities')}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+                    <div className="p-3 rounded-full bg-purple-500/10">
+                      <Calendar className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <p className="font-medium text-sm">Aucune activité planifiée</p>
+                    <Button size="sm" variant="outline" className="w-full pointer-events-none">
+                      Planifier une activité
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
+          )}
+
           {/* ── TIER 1.1: Team Performance (managers/admins only) ── */}
           {canManageTeam && (
             <motion.div variants={tierVariants}>

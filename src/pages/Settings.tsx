@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { useRole } from '@/hooks/useRole';
 import { useOrganization, useProfile } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send, Save } from 'lucide-react';
+import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send, Save, Camera } from 'lucide-react';
 import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { motion } from 'framer-motion';
@@ -73,15 +73,17 @@ function getInitials(name: string | null): string {
 
 function generateActivationKey(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  const group = () =>
+    Array.from({ length: 4 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+  return `${group()}-${group()}-${group()}`;
 }
 
 // ==================== TEAM MEMBERS SECTION ====================
-function TeamMembersSection({ organizationId, isAdmin }: { organizationId: string; isAdmin: boolean }) {
+function TeamMembersSection({ organizationId, isAdmin, currentUserId }: {
+  organizationId: string;
+  isAdmin: boolean;
+  currentUserId: string | undefined;
+}) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
@@ -147,21 +149,38 @@ function TeamMembersSection({ organizationId, isAdmin }: { organizationId: strin
 
   return (
     <div className="space-y-3">
+      {members.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {members.length} membre{members.length !== 1 ? 's' : ''}
+        </p>
+      )}
       {members.map((member) => {
         const memberRole = member.user_roles?.[0]?.role ?? 'agent';
+        const isSelf = member.user_id === currentUserId;
         return (
           <div
             key={member.id}
             className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50"
           >
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-              {getInitials(member.full_name)}
-            </div>
+            {member.avatar_url ? (
+              <img
+                src={member.avatar_url}
+                alt={member.full_name ?? ''}
+                className="w-9 h-9 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                {getInitials(member.full_name)}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{member.full_name || 'Sans nom'}</p>
+              <p className="font-medium text-sm truncate">
+                {member.full_name || 'Sans nom'}
+                {isSelf && <span className="text-xs text-muted-foreground ml-1">(vous)</span>}
+              </p>
               <p className="text-xs text-muted-foreground truncate">{member.email}</p>
             </div>
-            {isAdmin ? (
+            {isAdmin && !isSelf ? (
               <Select
                 value={memberRole}
                 onValueChange={(val) => handleRoleChange(member.user_id, val as AppRole)}
@@ -272,6 +291,7 @@ function ActivationKeysSection() {
   const [keys, setKeys] = useState<ActivationKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [lastGeneratedKey, setLastGeneratedKey] = useState<string | null>(null);
 
   const fetchKeys = useCallback(async () => {
     setLoading(true);
@@ -304,7 +324,7 @@ function ActivationKeysSection() {
     try {
       const newKey = generateActivationKey();
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
+      expiresAt.setDate(expiresAt.getDate() + 90);
 
       const { error } = await supabase
         .from('activation_keys')
@@ -319,7 +339,8 @@ function ActivationKeysSection() {
         return;
       }
 
-      toast.success('Cle generee avec succes');
+      setLastGeneratedKey(newKey);
+      toast.success('Clé générée ✅ — partagez-la avec votre client');
       await fetchKeys();
     } catch {
       toast.error('Erreur inattendue');
@@ -355,8 +376,26 @@ function ActivationKeysSection() {
         ) : (
           <KeyRound className="w-4 h-4 mr-2" />
         )}
-        Generer une cle
+        Générer une clé
       </Button>
+
+      {lastGeneratedKey && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <Input
+            value={lastGeneratedKey}
+            readOnly
+            className="font-mono text-sm flex-1 bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 h-8 w-8"
+            onClick={() => handleCopy(lastGeneratedKey)}
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
 
       {keys.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">Aucune cle d'activation.</p>
@@ -410,6 +449,10 @@ export default function Settings() {
   const { data: organization, isLoading: orgLoading } = useOrganization();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { restartTour } = useOnboarding();
+
+  // Avatar upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editable profile state
   const [profileName, setProfileName] = useState('');
@@ -543,6 +586,55 @@ export default function Settings() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La photo ne doit pas dépasser 2MB');
+      return;
+    }
+
+    if (!user?.id || !organizationId || !profileId) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${organizationId}/${user.id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true });
+
+      if (uploadError) {
+        toast.error(`Erreur upload : ${uploadError.message}`);
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', profileId);
+
+      if (updateError) {
+        toast.error(`Erreur mise à jour : ${updateError.message}`);
+        return;
+      }
+
+      toast.success('Photo mise à jour ✅');
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    } catch {
+      toast.error('Erreur inattendue');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!profileId) return;
     setIsSavingProfile(true);
@@ -668,6 +760,47 @@ export default function Settings() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
+                  {/* Avatar */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {isUploadingAvatar ? (
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        </div>
+                      ) : profile?.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt="Avatar"
+                          className="w-16 h-16 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-xl font-semibold text-primary">
+                          {getInitials(profile?.full_name ?? null)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarUpload}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingAvatar}
+                      >
+                        <Camera className="w-3.5 h-3.5 mr-2" />
+                        Changer la photo
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">JPG, PNG ou WebP · Max 2 MB</p>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Nom complet</Label>
                     <Input
@@ -849,7 +982,11 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 {organizationId ? (
-                  <TeamMembersSection organizationId={organizationId} isAdmin={isAdmin} />
+                  <TeamMembersSection
+                    organizationId={organizationId}
+                    isAdmin={isAdmin}
+                    currentUserId={user?.id}
+                  />
                 ) : (
                   <Skeleton className="h-16 w-full" />
                 )}
