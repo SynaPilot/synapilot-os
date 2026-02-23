@@ -738,7 +738,7 @@ export default function Dashboard() {
             </div>
 
             {/* Today's Agenda */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 flex flex-col">
               <Card className="glass border-white/5 h-full">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -791,8 +791,8 @@ export default function Dashboard() {
             </div>
 
             {/* Daily Brief */}
-            <div className="lg:col-span-2">
-              <DailyBrief />
+            <div className="lg:col-span-2 flex flex-col">
+              <DailyBrief className="h-full flex-1" />
             </div>
           </motion.div>
 

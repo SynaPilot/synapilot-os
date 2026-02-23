@@ -372,11 +372,12 @@ export function MarketPulse({ postalCode: initialPostalCode, className }: Market
 
   return (
     <motion.div
+      className="h-full"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.35 }}
     >
-      <Card className={cn('glass border-white/10 overflow-hidden', className)}>
+      <Card className={cn('glass border-white/10 overflow-hidden h-full', className)}>
         <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500" />
 
         <CardHeader className="pb-3">

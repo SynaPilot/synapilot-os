@@ -117,7 +117,11 @@ function Confetti() {
   );
 }
 
-export function DailyBrief() {
+interface Props {
+  className?: string;
+}
+
+export function DailyBrief({ className }: Props) {
   const navigate = useNavigate();
   const [completedActions, setCompletedActions] = useState<Set<string>>(new Set());
   const [snoozedActions, setSnoozedActions] = useState<Set<string>>(new Set());
@@ -333,11 +337,12 @@ export function DailyBrief() {
 
   return (
     <motion.div
+      className={cn(className)}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="glass border-white/10 relative overflow-hidden">
+      <Card className="glass border-white/10 relative overflow-hidden h-full">
         {showConfetti && <Confetti />}
         
         <CardHeader className="pb-3">
