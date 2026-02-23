@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { useRole } from '@/hooks/useRole';
 import { useOrganization, useProfile } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send } from 'lucide-react';
+import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send, Save } from 'lucide-react';
 import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { motion } from 'framer-motion';
@@ -400,13 +401,74 @@ function ActivationKeysSection() {
 
 // ==================== MAIN SETTINGS PAGE ====================
 export default function Settings() {
-  const { user } = useAuth();
-  const { organizationId } = useAuth();
+  const { user, organizationId, profileId } = useAuth();
   const { canManageTeam, isAdmin } = useRole();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: organization, isLoading: orgLoading } = useOrganization();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { restartTour } = useOnboarding();
+
+  // Editable profile state
+  const [profileName, setProfileName] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Editable org state
+  const [orgName, setOrgName] = useState('');
+  const [isSavingOrg, setIsSavingOrg] = useState(false);
+
+  // Initialise local state from query data once loaded
+  useEffect(() => {
+    if (profile?.full_name) setProfileName(profile.full_name);
+  }, [profile?.full_name]);
+
+  useEffect(() => {
+    if (organization?.name) setOrgName(organization.name);
+  }, [organization?.name]);
+
+  const handleSaveProfile = async () => {
+    if (!profileId) return;
+    setIsSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: profileName.trim() })
+        .eq('id', profileId);
+
+      if (error) {
+        toast.error(`Erreur : ${error.message}`);
+        return;
+      }
+      toast.success('Profil mis à jour');
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    } catch {
+      toast.error('Erreur inattendue');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveOrg = async () => {
+    if (!organizationId) return;
+    setIsSavingOrg(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ name: orgName.trim() })
+        .eq('id', organizationId);
+
+      if (error) {
+        toast.error(`Erreur : ${error.message}`);
+        return;
+      }
+      toast.success('Organisation mise à jour');
+      queryClient.invalidateQueries({ queryKey: ['organization', user?.id] });
+    } catch {
+      toast.error('Erreur inattendue');
+    } finally {
+      setIsSavingOrg(false);
+    }
+  };
 
   return (
     <motion.div
@@ -448,13 +510,29 @@ export default function Settings() {
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Nom</Label>
-                    <Input value={organization?.name || ''} disabled className="bg-secondary/50 font-mono" />
+                    <Label className="text-xs text-muted-foreground">Nom de l'agence</Label>
+                    <Input
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      placeholder="Nom de votre agence"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Identifiant</Label>
-                    <Input value={organization?.slug || ''} disabled className="bg-secondary/50 font-mono" />
+                    <Label className="text-xs text-muted-foreground">Identifiant (slug)</Label>
+                    <Input value={organization?.slug || ''} disabled className="bg-secondary/50 font-mono text-xs" />
                   </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveOrg}
+                    disabled={isSavingOrg || !orgName.trim()}
+                  >
+                    {isSavingOrg ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5 mr-2" />
+                    )}
+                    Enregistrer
+                  </Button>
                 </>
               )}
             </CardContent>
@@ -474,13 +552,29 @@ export default function Settings() {
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Nom</Label>
-                    <Input value={profile?.full_name || ''} disabled className="bg-secondary/50" />
+                    <Label className="text-xs text-muted-foreground">Nom complet</Label>
+                    <Input
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="Votre nom"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Email</Label>
-                    <Input value={user?.email || ''} disabled className="bg-secondary/50 font-mono" />
+                    <Input value={user?.email || ''} disabled className="bg-secondary/50 font-mono text-xs" />
                   </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile || !profileName.trim()}
+                  >
+                    {isSavingProfile ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5 mr-2" />
+                    )}
+                    Enregistrer
+                  </Button>
                 </>
               )}
             </CardContent>

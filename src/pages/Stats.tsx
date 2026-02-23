@@ -54,9 +54,10 @@ type Deal = Tables<'deals'>;
 type Activity = Tables<'activities'>;
 type Contact = Tables<'contacts'>;
 type Property = Tables<'properties'>;
+type Month = Tables<'months'>;
 
-// Dummy monthly objective (will be configurable later)
-const MONTHLY_OBJECTIVE = 50000;
+// Monthly objective fetched from DB; falls back to 50000 until loaded
+const DEFAULT_MONTHLY_OBJECTIVE = 50000;
 
 // DPE bar colors (A=green → G=dark red)
 const DPE_BAR_COLORS = ['#22c55e', '#84cc16', '#facc15', '#f59e0b', '#f97316', '#ef4444', '#b91c1c'];
@@ -224,6 +225,23 @@ export default function Stats() {
     orderBy: { column: 'created_at', ascending: false }
   });
 
+  // Fetch current year monthly objectives from months table
+  const currentYear = new Date().getFullYear();
+  const { data: monthsData } = useOrgQuery<Month[]>('months', {
+    select: 'month,year,objectif_ca',
+    orderBy: { column: 'month', ascending: true }
+  });
+
+  // Build a map of month -> objectif_ca for current year
+  const monthlyObjectives = useMemo(() => {
+    if (!monthsData) return new Map<number, number>();
+    const map = new Map<number, number>();
+    monthsData
+      .filter(m => m.year === currentYear)
+      .forEach(m => map.set(m.month, m.objectif_ca ?? DEFAULT_MONTHLY_OBJECTIVE));
+    return map;
+  }, [monthsData, currentYear]);
+
   const isLoading = dealsLoading || activitiesLoading || contactsLoading || propertiesLoading;
 
   // --- Computed Data (7 useMemo blocks) ---
@@ -255,22 +273,23 @@ export default function Stats() {
 
   const monthlyData = useMemo(() => {
     if (!deals) return [];
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const currentYear = new Date().getFullYear();
-    return months.map((month, index) => {
+    const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    return monthLabels.map((month, index) => {
       const wonDeals = deals.filter(d => {
         if (!d.updated_at) return false;
         const date = new Date(d.updated_at);
         return date.getFullYear() === currentYear && date.getMonth() === index && d.stage === 'vendu';
       });
+      // month index in DB is 1-based
+      const objectif = monthlyObjectives.get(index + 1) ?? DEFAULT_MONTHLY_OBJECTIVE;
       return {
         month,
         ca: wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0),
         commissions: wonDeals.reduce((sum, d) => sum + (d.commission_amount || 0), 0),
-        objectif: MONTHLY_OBJECTIVE,
+        objectif,
       };
     });
-  }, [deals]);
+  }, [deals, monthlyObjectives, currentYear]);
 
   const funnelData = useMemo(() => {
     if (!deals) return [];
@@ -386,6 +405,52 @@ export default function Stats() {
     </defs>
   );
 
+  // --- CSV Export ---
+  const handleExportCSV = () => {
+    const rows: string[][] = [];
+
+    // Deals section
+    rows.push(['=== DEALS ===']);
+    rows.push(['Mois', 'CA (€)', 'Commissions (€)', 'Objectif (€)']);
+    monthlyData.forEach(m => {
+      rows.push([m.month, String(m.ca), String(m.commissions), String(m.objectif)]);
+    });
+
+    rows.push([]);
+
+    // Contacts section
+    rows.push(['=== CONTACTS ===']);
+    rows.push(['Total', 'Nouveaux', 'Gagnés', 'Taux conversion (%)']);
+    rows.push([
+      String(contactsStats.total),
+      String(contactsStats.new),
+      String(contactsStats.won),
+      String(contactsStats.conversionRate),
+    ]);
+
+    rows.push([]);
+
+    // Properties section
+    rows.push(['=== BIENS ===']);
+    rows.push(['Type', 'Nombre']);
+    propertyDistributions.byType.forEach(t => rows.push([t.name, String(t.value)]));
+    rows.push([]);
+    rows.push(['Statut', 'Nombre']);
+    propertyDistributions.byStatus.forEach(s => rows.push([s.name, String(s.value)]));
+    rows.push([]);
+    rows.push(['DPE', 'Nombre']);
+    propertyDistributions.byDpe.forEach(d => rows.push([d.name, String(d.value)]));
+
+    const csv = rows.map(r => r.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `synapilot-stats-${currentYear}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // --- Render ---
 
   return (
@@ -401,7 +466,13 @@ export default function Stats() {
           <h1 className="text-3xl font-semibold tracking-tight">Statistiques</h1>
           <p className="text-muted-foreground text-sm">Intelligence d'affaires immobilière</p>
         </div>
-        <Button variant="outline" size="sm" className="border-white/10 hover:border-primary/40">
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-white/10 hover:border-primary/40"
+          onClick={handleExportCSV}
+          disabled={isLoading}
+        >
           <Download className="w-4 h-4 mr-2" />
           Exporter
         </Button>

@@ -56,7 +56,37 @@ export default function Billing() {
   const { isAdmin } = useRole();
   const { data: subscription, isLoading } = useSubscription();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const trialDaysLeft = useTrialDaysLeft(subscription?.trial_ends_at ?? null);
+
+  const handlePortal = async () => {
+    if (!organizationId) return;
+
+    setPortalLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-portal-session', {
+        body: { organization_id: organizationId },
+      });
+
+      if (error) {
+        toast.error(error.message || 'Erreur lors de l\'ouverture du portail');
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      toast.error('Erreur inattendue');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (!organizationId) return;
@@ -221,6 +251,28 @@ export default function Billing() {
           )}
         </CardContent>
       </Card>
+
+      {/* ====== PORTAL BUTTON (active subscribers) ====== */}
+      {isAdmin && status === 'active' && (
+        <Card className="glass">
+          <CardContent className="pt-6">
+            <Button
+              onClick={handlePortal}
+              disabled={portalLoading}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              {portalLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              Gérer mon abonnement
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ====== CTA BUTTON ====== */}
       {isAdmin && (status === 'trialing' || status === 'canceled' || status === 'past_due') && (
