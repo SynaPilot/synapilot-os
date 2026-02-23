@@ -1,19 +1,12 @@
-export interface N8nIntegrationSettings {
-  webhook_url: string;
-  enabled: boolean;
-}
-
-export interface TwilioIntegrationSettings {
-  account_sid: string;
-  auth_token: string;
-  from_number: string;
-  enabled: boolean;
-}
-
 export interface OrgSettings {
-  integrations?: {
-    n8n?: N8nIntegrationSettings;
-    twilio?: TwilioIntegrationSettings;
+  automations?: {
+    qualify_lead: boolean;       // default: true
+    send_sms_reminder: boolean;  // default: true
+    notify_agent: boolean;       // default: true
+    sync_property: boolean;      // default: false
+  };
+  communications?: {
+    sms_enabled: boolean;        // default: true
   };
 }
 

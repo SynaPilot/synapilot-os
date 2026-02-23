@@ -14,7 +14,7 @@ import { useRole } from '@/hooks/useRole';
 import { useOrganization, useProfile } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send, Save, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Building2, User, Bell, Zap, Users, UserPlus, KeyRound, Copy, Loader2, Send, Save } from 'lucide-react';
 import { OnboardingProgress } from '@/components/OnboardingProgress';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { motion } from 'framer-motion';
@@ -419,21 +419,15 @@ export default function Settings() {
   const [orgName, setOrgName] = useState('');
   const [isSavingOrg, setIsSavingOrg] = useState(false);
 
-  // n8n integration state
-  const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
-  const [n8nEnabled, setN8nEnabled] = useState(false);
-  const [isSavingN8n, setIsSavingN8n] = useState(false);
-  const [isTestingN8n, setIsTestingN8n] = useState(false);
-
-  // Twilio integration state
-  const [twilioSid, setTwilioSid] = useState('');
-  const [twilioAuthToken, setTwilioAuthToken] = useState('');
-  const [twilioAuthTokenSaved, setTwilioAuthTokenSaved] = useState(false);
-  const [twilioAuthTokenEditMode, setTwilioAuthTokenEditMode] = useState(false);
-  const [twilioAuthTokenVisible, setTwilioAuthTokenVisible] = useState(false);
-  const [twilioFromNumber, setTwilioFromNumber] = useState('');
-  const [twilioEnabled, setTwilioEnabled] = useState(false);
-  const [isSavingTwilio, setIsSavingTwilio] = useState(false);
+  // Automation toggles state
+  const defaultAutomations = {
+    qualify_lead: true,
+    send_sms_reminder: true,
+    notify_agent: true,
+    sync_property: false,
+  };
+  const [automations, setAutomations] = useState(defaultAutomations);
+  const [smsEnabled, setSmsEnabled] = useState(true);
 
   // Notification settings state
   const defaultNotifs: NotificationSettings = {
@@ -456,17 +450,18 @@ export default function Settings() {
   useEffect(() => {
     if (!organization) return;
     const s = organization.settings as unknown as OrgSettings | null;
-    const n8n = s?.integrations?.n8n;
-    if (n8n) {
-      setN8nWebhookUrl(n8n.webhook_url || '');
-      setN8nEnabled(n8n.enabled ?? false);
+    const auto = s?.automations;
+    if (auto) {
+      setAutomations({
+        qualify_lead: auto.qualify_lead ?? true,
+        send_sms_reminder: auto.send_sms_reminder ?? true,
+        notify_agent: auto.notify_agent ?? true,
+        sync_property: auto.sync_property ?? false,
+      });
     }
-    const twilio = s?.integrations?.twilio;
-    if (twilio) {
-      setTwilioSid(twilio.account_sid || '');
-      setTwilioAuthTokenSaved(!!twilio.auth_token);
-      setTwilioFromNumber(twilio.from_number || '');
-      setTwilioEnabled(twilio.enabled ?? false);
+    const comm = s?.communications;
+    if (comm) {
+      setSmsEnabled(comm.sms_enabled ?? true);
     }
   }, [organization]);
 
@@ -484,97 +479,46 @@ export default function Settings() {
     }
   }, [profile]);
 
-  const handleTestN8n = async () => {
-    if (!n8nWebhookUrl.trim()) {
-      toast.error('Veuillez entrer une URL de webhook');
-      return;
-    }
-    setIsTestingN8n(true);
-    try {
-      const response = await fetch(n8nWebhookUrl.trim(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', source: 'synapilot' }),
-      });
-      if (response.ok) {
-        toast.success('Connexion réussie ✅');
-      } else {
-        toast.error('Erreur de connexion ❌');
-      }
-    } catch {
-      toast.error('Erreur de connexion ❌');
-    } finally {
-      setIsTestingN8n(false);
+  const handleToggleAutomation = async (key: keyof typeof defaultAutomations, value: boolean) => {
+    if (!organizationId) return;
+    const updated = { ...automations, [key]: value };
+    setAutomations(updated);
+    const current = organization?.settings as unknown as OrgSettings | null;
+    const newSettings: OrgSettings = {
+      automations: updated,
+      communications: current?.communications ?? { sms_enabled: true },
+    };
+    const { error } = await supabase
+      .from('organizations')
+      .update({ settings: newSettings as unknown as Json })
+      .eq('id', organizationId);
+    if (error) {
+      toast.error(`Erreur : ${error.message}`);
+      setAutomations((prev) => ({ ...prev, [key]: !value }));
+    } else {
+      toast.success('Sauvegardé ✅');
+      queryClient.invalidateQueries({ queryKey: ['organization', user?.id] });
     }
   };
 
-  const handleSaveN8n = async () => {
+  const handleToggleSms = async (value: boolean) => {
     if (!organizationId) return;
-    setIsSavingN8n(true);
-    try {
-      const current = organization?.settings as unknown as OrgSettings | null;
-      const newSettings: OrgSettings = {
-        ...current,
-        integrations: {
-          ...current?.integrations,
-          n8n: { webhook_url: n8nWebhookUrl.trim(), enabled: n8nEnabled },
-        },
-      };
-      const { error } = await supabase
-        .from('organizations')
-        .update({ settings: newSettings as unknown as Json })
-        .eq('id', organizationId);
-      if (error) {
-        toast.error(`Erreur : ${error.message}`);
-        return;
-      }
-      toast.success('Intégration n8n sauvegardée');
+    setSmsEnabled(value);
+    const current = organization?.settings as unknown as OrgSettings | null;
+    const newSettings: OrgSettings = {
+      automations: current?.automations ?? defaultAutomations,
+      communications: { sms_enabled: value },
+    };
+    const { error } = await supabase
+      .from('organizations')
+      .update({ settings: newSettings as unknown as Json })
+      .eq('id', organizationId);
+    if (error) {
+      toast.error(`Erreur : ${error.message}`);
+      setSmsEnabled((prev) => !prev);
+    } else {
+      toast.success('Sauvegardé ✅');
       queryClient.invalidateQueries({ queryKey: ['organization', user?.id] });
-    } catch {
-      toast.error('Erreur inattendue');
-    } finally {
-      setIsSavingN8n(false);
-    }
-  };
-
-  const handleSaveTwilio = async () => {
-    if (!organizationId) return;
-    setIsSavingTwilio(true);
-    try {
-      const current = organization?.settings as unknown as OrgSettings | null;
-      const existingToken = current?.integrations?.twilio?.auth_token ?? '';
-      const tokenToSave = twilioAuthTokenEditMode && twilioAuthToken.trim()
-        ? twilioAuthToken.trim()
-        : existingToken;
-      const newSettings: OrgSettings = {
-        ...current,
-        integrations: {
-          ...current?.integrations,
-          twilio: {
-            account_sid: twilioSid.trim(),
-            auth_token: tokenToSave,
-            from_number: twilioFromNumber.trim(),
-            enabled: twilioEnabled,
-          },
-        },
-      };
-      const { error } = await supabase
-        .from('organizations')
-        .update({ settings: newSettings as unknown as Json })
-        .eq('id', organizationId);
-      if (error) {
-        toast.error(`Erreur : ${error.message}`);
-        return;
-      }
-      toast.success('Intégration Twilio sauvegardée');
-      setTwilioAuthTokenSaved(!!tokenToSave);
-      setTwilioAuthToken('');
-      setTwilioAuthTokenEditMode(false);
-      queryClient.invalidateQueries({ queryKey: ['organization', user?.id] });
-    } catch {
-      toast.error('Erreur inattendue');
-    } finally {
-      setIsSavingTwilio(false);
     }
   };
 
@@ -807,151 +751,85 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          {/* ====== INTEGRATIONS CARD ====== */}
+          {/* ====== AUTOMATIONS CARD ====== */}
           <Card className="glass">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Zap className="w-4 h-4 text-primary" />
-                Intégrations
+                Automatisations
               </CardTitle>
-              <CardDescription>Connectez vos outils externes</CardDescription>
+              <CardDescription>Activez ou désactivez les workflows automatiques</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               {orgLoading ? (
                 <div className="space-y-3">
-                  {[1, 2].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+                  {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
                 </div>
               ) : (
                 <>
-                  {/* n8n */}
-                  <div className="space-y-4 p-4 rounded-lg border bg-secondary/30">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm">n8n Webhooks</p>
-                        <p className="text-xs text-muted-foreground">Automatisez vos workflows</p>
+                  {([
+                    {
+                      key: 'qualify_lead' as const,
+                      label: 'Qualification automatique des leads',
+                      description: 'Les leads sont scorés et qualifiés automatiquement à leur création',
+                    },
+                    {
+                      key: 'send_sms_reminder' as const,
+                      label: 'Relances SMS automatiques',
+                      description: 'Envoi d\'un SMS de relance aux contacts inactifs',
+                    },
+                    {
+                      key: 'notify_agent' as const,
+                      label: 'Notifications agent en temps réel',
+                      description: 'L\'agent assigné est notifié à chaque mise à jour de deal',
+                    },
+                    {
+                      key: 'sync_property' as const,
+                      label: 'Synchronisation des biens',
+                      description: 'Les biens sont synchronisés automatiquement avec les portails',
+                    },
+                  ] as const).map(({ key, label, description }) => (
+                    <div key={key} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-secondary/50">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{label}</p>
+                        <p className="text-xs text-muted-foreground">{description}</p>
                       </div>
                       <Switch
-                        checked={n8nEnabled}
-                        onCheckedChange={setN8nEnabled}
+                        checked={automations[key]}
+                        onCheckedChange={(v) => handleToggleAutomation(key, v)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">URL du Webhook n8n</Label>
-                      <Input
-                        value={n8nWebhookUrl}
-                        onChange={(e) => setN8nWebhookUrl(e.target.value)}
-                        placeholder="https://your-instance.n8n.cloud/webhook/..."
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleTestN8n}
-                        disabled={isTestingN8n || !n8nWebhookUrl.trim()}
-                      >
-                        {isTestingN8n ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : null}
-                        Tester la connexion
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveN8n}
-                        disabled={isSavingN8n}
-                      >
-                        {isSavingN8n ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5 mr-2" />
-                        )}
-                        Enregistrer
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Twilio */}
-                  <div className="space-y-4 p-4 rounded-lg border bg-secondary/30">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm">Twilio SMS</p>
-                        <p className="text-xs text-muted-foreground">Envoyez des SMS automatiques</p>
-                      </div>
-                      <Switch
-                        checked={twilioEnabled}
-                        onCheckedChange={setTwilioEnabled}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Account SID</Label>
-                      <Input
-                        value={twilioSid}
-                        onChange={(e) => setTwilioSid(e.target.value)}
-                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Auth Token</Label>
-                      {twilioAuthTokenSaved && !twilioAuthTokenEditMode ? (
-                        <div className="flex gap-2">
-                          <Input
-                            value="••••••••••••••••"
-                            disabled
-                            className="bg-secondary/50 font-mono text-xs flex-1"
-                          />
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="shrink-0 h-9 w-9"
-                            onClick={() => { setTwilioAuthTokenEditMode(true); setTwilioAuthToken(''); }}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="relative">
-                          <Input
-                            type={twilioAuthTokenVisible ? 'text' : 'password'}
-                            value={twilioAuthToken}
-                            onChange={(e) => setTwilioAuthToken(e.target.value)}
-                            placeholder="Votre Auth Token Twilio"
-                            className="pr-10"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                            onClick={() => setTwilioAuthTokenVisible((v) => !v)}
-                          >
-                            {twilioAuthTokenVisible
-                              ? <EyeOff className="w-3.5 h-3.5" />
-                              : <Eye className="w-3.5 h-3.5" />
-                            }
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Numéro expéditeur</Label>
-                      <Input
-                        value={twilioFromNumber}
-                        onChange={(e) => setTwilioFromNumber(e.target.value)}
-                        placeholder="+33XXXXXXXXX"
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={handleSaveTwilio}
-                      disabled={isSavingTwilio}
-                    >
-                      {isSavingTwilio ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
-                      ) : (
-                        <Save className="w-3.5 h-3.5 mr-2" />
-                      )}
-                      Enregistrer
-                    </Button>
-                  </div>
+                  ))}
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ====== COMMUNICATIONS CARD ====== */}
+          <Card className="glass">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bell className="w-4 h-4 text-primary" />
+                Communications
+              </CardTitle>
+              <CardDescription>Canaux de communication avec vos contacts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {orgLoading ? (
+                <Skeleton className="h-12 w-full" />
+              ) : (
+                <div className="flex items-center justify-between gap-4 p-3 rounded-lg bg-secondary/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">Activer les SMS de relance</p>
+                    <p className="text-xs text-muted-foreground">
+                      Inclus dans votre abonnement — envoi de SMS depuis le numéro SynaPilot
+                    </p>
+                  </div>
+                  <Switch
+                    checked={smsEnabled}
+                    onCheckedChange={handleToggleSms}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>

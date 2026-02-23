@@ -16,12 +16,11 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
-import { useOrganization } from '@/hooks/useOrganization';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
-import { callN8nWebhook, type N8nAction } from '@/lib/n8n';
-import type { OrgSettings } from '@/types/settings';
+import type { N8nAction } from '@/lib/n8n';
+import { supabase } from '@/integrations/supabase/client';
 
 type Contact = Tables<'contacts'>;
 type Deal = Tables<'deals'>;
@@ -91,7 +90,6 @@ function ActionCard({ priority, icon, title, description, actionLabel, onClick, 
 
 export function SmartActions() {
   const navigate = useNavigate();
-  const { data: organization } = useOrganization();
 
   // Fetch contacts for cold contacts analysis
   const { data: contacts, isLoading: contactsLoading } = useOrgQuery<Contact[]>('contacts', {
@@ -258,28 +256,27 @@ export function SmartActions() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {actions.map((action, index) => {
-          const orgN8n = (organization?.settings as unknown as OrgSettings | null)?.integrations?.n8n;
-          return (
-            <ActionCard
-              key={action.id}
-              priority={action.priority}
-              icon={action.icon}
-              title={action.title}
-              description={action.description}
-              actionLabel={action.actionLabel}
-              onClick={() => {
-                navigate(action.route);
-                if (action.n8nAction && orgN8n?.enabled && orgN8n?.webhook_url) {
-                  callN8nWebhook(action.n8nAction, {}, orgN8n.webhook_url).catch((e) =>
-                    console.error('n8n webhook error:', e),
-                  );
-                }
-              }}
-              delay={index * 0.1}
-            />
-          );
-        })}
+        {actions.map((action, index) => (
+          <ActionCard
+            key={action.id}
+            priority={action.priority}
+            icon={action.icon}
+            title={action.title}
+            description={action.description}
+            actionLabel={action.actionLabel}
+            onClick={() => {
+              navigate(action.route);
+              if (action.n8nAction) {
+                supabase.functions
+                  .invoke('trigger-automation', {
+                    body: { action: action.n8nAction, payload: {} },
+                  })
+                  .catch((e) => console.error('trigger-automation error:', e));
+              }
+            }}
+            delay={index * 0.1}
+          />
+        ))}
       </CardContent>
     </Card>
   );
