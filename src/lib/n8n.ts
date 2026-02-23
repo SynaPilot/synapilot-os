@@ -1,7 +1,7 @@
 // n8n Webhook Integration
-// Configure VITE_N8N_WEBHOOK_URL in your environment
+// Configure VITE_N8N_WEBHOOK_URL in your environment, or pass webhookUrl at call site.
 
-type N8nAction = 
+export type N8nAction =
   | 'qualify_lead'
   | 'generate_mandate'
   | 'send_sms_reminder'
@@ -13,16 +13,20 @@ interface N8nPayload {
   [key: string]: unknown;
 }
 
-export async function callN8nWebhook(action: N8nAction, payload: Record<string, unknown> = {}) {
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-  
-  if (!webhookUrl) {
+export async function callN8nWebhook(
+  action: N8nAction,
+  payload: Record<string, unknown> = {},
+  webhookUrl?: string,
+) {
+  const url = webhookUrl ?? import.meta.env.VITE_N8N_WEBHOOK_URL;
+
+  if (!url) {
     console.warn('N8N_WEBHOOK_URL not configured - action skipped:', action);
     return { success: false, error: 'Webhook not configured' };
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, ...payload } as N8nPayload),

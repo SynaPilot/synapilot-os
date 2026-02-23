@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
-import { 
-  Sparkles, 
-  Phone, 
-  TrendingDown, 
-  Calendar, 
+import {
+  Sparkles,
+  Phone,
+  TrendingDown,
+  Calendar,
   ArrowRight,
   AlertCircle,
   Clock,
@@ -16,9 +16,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
+import { useOrganization } from '@/hooks/useOrganization';
 import { differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
+import { callN8nWebhook, type N8nAction } from '@/lib/n8n';
+import type { OrgSettings } from '@/types/settings';
 
 type Contact = Tables<'contacts'>;
 type Deal = Tables<'deals'>;
@@ -88,7 +91,8 @@ function ActionCard({ priority, icon, title, description, actionLabel, onClick, 
 
 export function SmartActions() {
   const navigate = useNavigate();
-  
+  const { data: organization } = useOrganization();
+
   // Fetch contacts for cold contacts analysis
   const { data: contacts, isLoading: contactsLoading } = useOrgQuery<Contact[]>('contacts', {
     select: '*',
@@ -119,6 +123,7 @@ export function SmartActions() {
       description: string;
       actionLabel: string;
       route: string;
+      n8nAction?: N8nAction;
     }> = [];
     
     // Cold contacts (no update in 10+ days)
@@ -137,7 +142,8 @@ export function SmartActions() {
         title: `${coldContacts.length} contact${coldContacts.length > 1 ? 's' : ''} à relancer`,
         description: `${names}${coldContacts.length > 3 ? ` et ${coldContacts.length - 3} autres` : ''} n'ont pas été contactés depuis 10+ jours`,
         actionLabel: 'Relancer',
-        route: '/contacts'
+        route: '/contacts',
+        n8nAction: 'send_sms_reminder' as const,
       });
     }
     
@@ -157,7 +163,8 @@ export function SmartActions() {
         title: `${stagnantDeals.length} deal${stagnantDeals.length > 1 ? 's' : ''} bloqué${stagnantDeals.length > 1 ? 's' : ''}`,
         description: `${names}${stagnantDeals.length > 2 ? ` et ${stagnantDeals.length - 2} autres` : ''} n'ont pas évolué depuis 7 jours`,
         actionLabel: 'Voir',
-        route: '/deals'
+        route: '/deals',
+        n8nAction: 'notify_agent' as const,
       });
     }
     
@@ -191,7 +198,8 @@ export function SmartActions() {
         title: `${lowUrgencyContacts.length} lead${lowUrgencyContacts.length > 1 ? 's' : ''} chaud${lowUrgencyContacts.length > 1 ? 's' : ''}`,
         description: 'Prospects avec score élevé en attente de qualification',
         actionLabel: 'Qualifier',
-        route: '/contacts'
+        route: '/contacts',
+        n8nAction: 'qualify_lead' as const,
       });
     }
     
@@ -250,18 +258,28 @@ export function SmartActions() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {actions.map((action, index) => (
-          <ActionCard
-            key={action.id}
-            priority={action.priority}
-            icon={action.icon}
-            title={action.title}
-            description={action.description}
-            actionLabel={action.actionLabel}
-            onClick={() => navigate(action.route)}
-            delay={index * 0.1}
-          />
-        ))}
+        {actions.map((action, index) => {
+          const orgN8n = (organization?.settings as unknown as OrgSettings | null)?.integrations?.n8n;
+          return (
+            <ActionCard
+              key={action.id}
+              priority={action.priority}
+              icon={action.icon}
+              title={action.title}
+              description={action.description}
+              actionLabel={action.actionLabel}
+              onClick={() => {
+                navigate(action.route);
+                if (action.n8nAction && orgN8n?.enabled && orgN8n?.webhook_url) {
+                  callN8nWebhook(action.n8nAction, {}, orgN8n.webhook_url).catch((e) =>
+                    console.error('n8n webhook error:', e),
+                  );
+                }
+              }}
+              delay={index * 0.1}
+            />
+          );
+        })}
       </CardContent>
     </Card>
   );
