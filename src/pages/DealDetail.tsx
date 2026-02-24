@@ -15,6 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -209,6 +215,51 @@ const pageVariants = {
   animate: { opacity: 1, y: 0 },
 };
 
+// Stage badge colors for the sheet sticky header (palette-compliant only)
+const STAGE_MINI_BADGE: Record<DealStage, string> = {
+  nouveau: 'bg-blue-500/20 text-blue-300',
+  qualification: 'bg-slate-500/20 text-slate-300',
+  estimation: 'bg-purple-500/20 text-purple-300',
+  mandat: 'bg-blue-600/20 text-blue-300',
+  commercialisation: 'bg-blue-500/20 text-blue-300',
+  visite: 'bg-purple-500/20 text-purple-300',
+  offre: 'bg-blue-500/20 text-blue-300',
+  negociation: 'bg-purple-600/20 text-purple-300',
+  compromis: 'bg-blue-600/20 text-blue-200',
+  financement: 'bg-indigo-500/20 text-indigo-300',
+  acte: 'bg-blue-700/20 text-blue-200',
+  vendu: 'bg-blue-600/20 text-blue-200',
+  perdu: 'bg-red-500/20 text-red-400',
+};
+
+// Stagger animation variants
+const stepperContainerVariants = {
+  initial: {},
+  animate: { transition: { staggerChildren: 0.03 } },
+};
+const stepperItemVariants = {
+  initial: { opacity: 0, x: -8 },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.2 } },
+};
+
+const kpiContainerVariants = {
+  initial: {},
+  animate: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+const kpiItemVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+};
+
+const activityContainerVariants = {
+  initial: {},
+  animate: { transition: { staggerChildren: 0.05 } },
+};
+const activityItemVariants = {
+  initial: { opacity: 0, x: -10 },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.2 } },
+};
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 interface HeroSectionProps {
@@ -268,25 +319,39 @@ function HeroSection({ deal, onEdit, onNavigateBack, onStageChange, isUpdatingSt
         <h1 className="text-3xl font-display font-semibold tracking-tight">{deal.name}</h1>
 
         {/* Row 3: KPI chips */}
-        <div className="flex flex-wrap gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+        <motion.div
+          className="flex flex-wrap gap-3"
+          variants={kpiContainerVariants}
+          initial="initial"
+          animate="animate"
+        >
+          <motion.div
+            variants={kpiItemVariants}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
+          >
             <DollarSign className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="text-xs text-muted-foreground">Montant</span>
             <span className="text-sm font-semibold font-mono">{formatCurrency(deal.amount)}</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+          </motion.div>
+          <motion.div
+            variants={kpiItemVariants}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
+          >
             <TrendingUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="text-xs text-muted-foreground">Commission</span>
             <span className="text-sm font-semibold font-mono">
               {formatCurrency(deal.commission_amount ?? 0)}
             </span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+          </motion.div>
+          <motion.div
+            variants={kpiItemVariants}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
+          >
             <Target className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="text-xs text-muted-foreground">Probabilité</span>
             <span className="text-sm font-semibold">{deal.probability ?? 0} %</span>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );
@@ -306,7 +371,7 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
   );
 
   return (
-    <div>
+    <motion.div variants={stepperContainerVariants} initial="initial" animate="animate">
       {PROGRESS_STAGES.map((s, idx) => {
         const isCompleted = idx < currentStageIndex && stage !== 'perdu';
         const isCurrent = idx === currentStageIndex && stage !== 'perdu';
@@ -316,9 +381,7 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
           <motion.div
             key={s}
             className="flex gap-3"
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.03 }}
+            variants={stepperItemVariants}
           >
             <div className="flex flex-col items-center">
               <div
@@ -363,9 +426,7 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
       {/* Perdu node */}
       <motion.div
         className="flex gap-3 mt-1"
-        initial={{ opacity: 0, x: -8 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: PROGRESS_STAGES.length * 0.03 }}
+        variants={stepperItemVariants}
       >
         <div
           className={cn(
@@ -389,7 +450,7 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
           )}
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -743,24 +804,21 @@ function FinancialBreakdown({ deal }: FinancialBreakdownProps) {
   const now = Date.now();
   const weightedValue = deal.amount * ((deal.probability ?? 0) / 100);
 
-  let closureWarning: React.ReactNode = null;
+  let warningKey: string | null = null;
+  let warningLabel = '';
+  let warningClass = '';
   if (deal.expected_close_date && !CLOSED_STAGES.includes(stage)) {
     const closeMs = new Date(deal.expected_close_date).getTime();
     if (closeMs < now) {
-      const overdueDays = Math.floor((now - closeMs) / 86400000);
-      closureWarning = (
-        <div className="px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-medium">
-          Clôture dépassée · {overdueDays}j
-        </div>
-      );
+      warningKey = 'overdue';
+      warningLabel = `Clôture dépassée · ${Math.floor((now - closeMs) / 86400000)}j`;
+      warningClass = 'bg-red-500/15 text-red-400';
     } else {
       const daysUntil = Math.floor((closeMs - now) / 86400000);
       if (daysUntil <= 7) {
-        closureWarning = (
-          <div className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-medium">
-            Clôture imminente · {daysUntil}j
-          </div>
-        );
+        warningKey = 'imminent';
+        warningLabel = `Clôture imminente · ${daysUntil}j`;
+        warningClass = 'bg-purple-500/20 text-purple-300';
       }
     }
   }
@@ -774,7 +832,20 @@ function FinancialBreakdown({ deal }: FinancialBreakdownProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {closureWarning}
+        <AnimatePresence>
+          {warningKey && (
+            <motion.div
+              key={warningKey}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium', warningClass)}
+            >
+              {warningLabel}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex justify-between items-baseline">
           <span className="text-xs text-muted-foreground">Prix de vente</span>
@@ -1297,7 +1368,7 @@ export default function DealDetail() {
       initial="initial"
       animate="animate"
       variants={pageVariants}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       {/* Hero section */}
       <HeroSection
@@ -1721,15 +1792,18 @@ export default function DealDetail() {
                   ) : activities && activities.length > 0 ? (
                     <div className="relative">
                       <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-                      <div className="space-y-6">
-                        {activities.map((activity, index) => {
+                      <motion.div
+                        className="space-y-6"
+                        variants={activityContainerVariants}
+                        initial="initial"
+                        animate="animate"
+                      >
+                        {activities.map((activity) => {
                           const { icon: TypeIcon } = getActivityTypeIcon(activity.type);
                           return (
                             <motion.div
                               key={activity.id}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.05 }}
+                              variants={activityItemVariants}
                               className="relative flex gap-4 pl-2"
                             >
                               <div className="w-8 h-8 rounded-full flex items-center justify-center border border-border bg-muted/50 z-10 shrink-0">
@@ -1766,7 +1840,7 @@ export default function DealDetail() {
                             </motion.div>
                           );
                         })}
-                      </div>
+                      </motion.div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
@@ -1850,16 +1924,23 @@ export default function DealDetail() {
         </div>
       </div>
 
-      {/* ── Edit Dialog ── */}
-      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 backdrop-blur-xl shadow-2xl shadow-black/50 border-white/10 rounded-xl">
+      {/* ── Edit Sheet ── */}
+      <Sheet open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
+        <SheetContent side="right" className="!p-0 w-full sm:max-w-xl overflow-y-auto border-l border-white/10">
+          {/* Sticky mini-header */}
+          <div className="sticky top-0 z-10 px-6 py-3 bg-background/95 backdrop-blur-sm border-b border-white/10 flex items-center gap-3 pr-12">
+            <span className="text-sm font-medium truncate flex-1">{deal.name}</span>
+            <Badge className={cn('text-xs shrink-0 border-0', STAGE_MINI_BADGE[stage])}>
+              {DEAL_STAGE_LABELS[stage]}
+            </Badge>
+          </div>
           <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-8 pb-6 border-b border-white/10">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-semibold flex items-center gap-3">
+            <SheetHeader>
+              <SheetTitle className="text-2xl font-semibold flex items-center gap-3">
                 <Edit className="w-6 h-6 text-purple-400" />
                 Modifier l'opportunité
-              </DialogTitle>
-            </DialogHeader>
+              </SheetTitle>
+            </SheetHeader>
           </div>
           <Form {...editForm}>
             <form
@@ -2312,8 +2393,8 @@ export default function DealDetail() {
               </Button>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </motion.div>
   );
 }
