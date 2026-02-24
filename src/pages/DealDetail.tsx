@@ -62,6 +62,8 @@ import {
   Edit3,
   Check,
   ChevronsUpDown,
+  DollarSign,
+  Target,
 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
@@ -114,24 +116,12 @@ const STAGE_PROBABILITY_MAP: Record<DealStage, number> = {
   perdu: 0,
 };
 
-const STAGE_BADGE_COLORS: Record<DealStage, string> = {
-  nouveau: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  qualification: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-  estimation: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  mandat: 'bg-green-500/20 text-green-400 border-green-500/30',
-  commercialisation: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-  visite: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-  offre: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  negociation: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  compromis: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-  financement: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
-  acte: 'bg-lime-500/20 text-lime-400 border-lime-500/30',
-  vendu: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  perdu: 'bg-red-500/20 text-red-400 border-red-500/30',
-};
 
 // Stages shown in the progress bar (excluding 'perdu')
 const PROGRESS_STAGES = DEAL_STAGES.filter((s) => s !== 'perdu');
+
+// Select string for deal queries — used in both the query and optimistic update
+const DEAL_SELECT = '*, contacts:contact_id(id, full_name), properties:property_id(title), profiles:assigned_to(full_name)' as const;
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -209,6 +199,190 @@ const pageVariants = {
   animate: { opacity: 1, y: 0 },
 };
 
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+interface HeroSectionProps {
+  deal: DealWithRelations;
+  onEdit: () => void;
+  onNavigateBack: () => void;
+  onStageChange: (stage: DealStage) => void;
+  isUpdatingStage: boolean;
+}
+
+function HeroSection({ deal, onEdit, onNavigateBack, onStageChange, isUpdatingStage }: HeroSectionProps) {
+  const stage = deal.stage as DealStage;
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-white/10">
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-blue-800/10 bg-[size:200%]"
+        animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+        transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+      />
+      <div className="relative p-6 space-y-4">
+        {/* Row 1: nav + actions */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={onNavigateBack} className="gap-2 -ml-2">
+            <ArrowLeft className="w-4 h-4" />
+            Retour au pipeline
+          </Button>
+          <div className="flex items-center gap-2">
+            <Select
+              value={stage}
+              onValueChange={(v) => onStageChange(v as DealStage)}
+              disabled={isUpdatingStage}
+            >
+              <SelectTrigger className="w-44 h-8 text-xs bg-white/5 border-white/10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DEAL_STAGES.map((s) => (
+                  <SelectItem key={s} value={s} className="text-xs">
+                    {DEAL_STAGE_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 shrink-0 bg-white/5 border-white/10"
+              onClick={onEdit}
+            >
+              <Edit className="w-4 h-4" />
+              Modifier
+            </Button>
+          </div>
+        </div>
+
+        {/* Row 2: deal name */}
+        <h1 className="text-3xl font-display font-semibold tracking-tight">{deal.name}</h1>
+
+        {/* Row 3: KPI chips */}
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+            <DollarSign className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="text-xs text-muted-foreground">Montant</span>
+            <span className="text-sm font-semibold font-mono">{formatCurrency(deal.amount)}</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+            <TrendingUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="text-xs text-muted-foreground">Commission</span>
+            <span className="text-sm font-semibold font-mono">
+              {formatCurrency(deal.commission_amount ?? 0)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+            <Target className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="text-xs text-muted-foreground">Probabilité</span>
+            <span className="text-sm font-semibold">{deal.probability ?? 0} %</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface StageStepperProps {
+  deal: DealWithRelations;
+  currentStageIndex: number;
+}
+
+function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
+  const stage = deal.stage as DealStage;
+  const daysInStage = Math.floor(
+    (Date.now() - new Date(deal.updated_at).getTime()) / 86400000
+  );
+
+  return (
+    <div>
+      {PROGRESS_STAGES.map((s, idx) => {
+        const isCompleted = idx < currentStageIndex && stage !== 'perdu';
+        const isCurrent = idx === currentStageIndex && stage !== 'perdu';
+        const isLast = idx === PROGRESS_STAGES.length - 1;
+
+        return (
+          <motion.div
+            key={s}
+            className="flex gap-3"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.03 }}
+          >
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  'w-3 h-3 rounded-full shrink-0 mt-0.5',
+                  isCompleted && 'bg-primary',
+                  isCurrent &&
+                    'bg-blue-500 ring-2 ring-blue-500 ring-offset-2 ring-offset-background shadow-[0_0_8px_rgba(59,130,246,0.6)]',
+                  !isCompleted && !isCurrent && 'border border-border bg-background'
+                )}
+              />
+              {!isLast && (
+                <div
+                  className={cn(
+                    'w-0.5 flex-1 my-1 min-h-[12px]',
+                    isCompleted ? 'bg-primary/40' : 'bg-border'
+                  )}
+                />
+              )}
+            </div>
+            <div
+              className={cn(
+                'pb-2 text-xs',
+                isCurrent
+                  ? 'text-primary font-semibold'
+                  : isCompleted
+                  ? 'text-foreground/60'
+                  : 'text-muted-foreground'
+              )}
+            >
+              {DEAL_STAGE_LABELS[s]}
+              {isCurrent && (
+                <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                  {daysInStage === 0 ? "Aujourd'hui" : `${daysInStage} j dans cette étape`}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+
+      {/* Perdu node */}
+      <motion.div
+        className="flex gap-3 mt-1"
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: PROGRESS_STAGES.length * 0.03 }}
+      >
+        <div
+          className={cn(
+            'w-3 h-3 rounded-full shrink-0 mt-0.5 border',
+            stage === 'perdu'
+              ? 'bg-red-500/30 border-red-500'
+              : 'bg-background border-border'
+          )}
+        />
+        <div
+          className={cn(
+            'text-xs',
+            stage === 'perdu' ? 'text-red-400 font-semibold' : 'text-muted-foreground'
+          )}
+        >
+          {DEAL_STAGE_LABELS['perdu']}
+          {stage === 'perdu' && (
+            <p className="text-xs text-muted-foreground font-normal mt-0.5">
+              {daysInStage === 0 ? "Aujourd'hui" : `${daysInStage} j dans cette étape`}
+            </p>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DealDetail() {
@@ -237,7 +411,7 @@ export default function DealDetail() {
   const { data: deal, isLoading: isLoadingDeal } = useOrgQuery<DealWithRelations>(
     'deals',
     {
-      select: '*, contacts:contact_id(id, full_name), properties:property_id(title), profiles:assigned_to(full_name)',
+      select: DEAL_SELECT,
       filters: id ? { id } : undefined,
       single: true,
     },
@@ -426,6 +600,42 @@ export default function DealDetail() {
     onError: (error) => toast.error(`Erreur: ${error.message}`),
   });
 
+  const stageUpdateMutation = useMutation({
+    mutationFn: async (newStage: DealStage) => {
+      if (!organizationId || !id) throw new Error('Organisation non trouvée');
+      const { error } = await supabase
+        .from('deals')
+        .update({ stage: newStage, probability: STAGE_PROBABILITY_MAP[newStage] })
+        .eq('id', id)
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+    },
+    onMutate: async (newStage: DealStage) => {
+      await queryClient.cancelQueries({ queryKey: ['deals', organizationId] });
+      const previousDeal = queryClient.getQueryData<DealWithRelations>([
+        'deals',
+        organizationId,
+        { id },
+        DEAL_SELECT,
+      ]);
+      queryClient.setQueryData<DealWithRelations>(
+        ['deals', organizationId, { id }, DEAL_SELECT],
+        (old) => (old ? { ...old, stage: newStage, probability: STAGE_PROBABILITY_MAP[newStage] } : old)
+      );
+      return { previousDeal };
+    },
+    onError: (_err, _newStage, context) => {
+      queryClient.setQueryData(
+        ['deals', organizationId, { id }, DEAL_SELECT],
+        context?.previousDeal
+      );
+      toast.error('Erreur lors de la mise à jour du stade');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
+    },
+  });
+
   // ── Derived values ───────────────────────────────────────────────────────
 
   const filteredContacts = contacts?.filter((c) =>
@@ -490,46 +700,14 @@ export default function DealDetail() {
       variants={pageVariants}
       transition={{ duration: 0.3 }}
     >
-      {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={() => navigate('/deals')} className="gap-2">
-        <ArrowLeft className="w-4 h-4" />
-        Retour au pipeline
-      </Button>
-
-      {/* Header card */}
-      <Card className="border-border bg-card/50">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-semibold tracking-tight">{deal.name}</h1>
-                <Badge className={cn('text-xs', STAGE_BADGE_COLORS[stage])}>
-                  {DEAL_STAGE_LABELS[stage]}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-4 flex-wrap">
-                <span className="text-2xl font-display font-semibold text-primary font-mono">
-                  {formatCurrency(deal.amount)}
-                </span>
-                {deal.commission_amount != null && deal.commission_amount > 0 && (
-                  <span className="text-base font-medium text-green-400 font-mono">
-                    + {formatCurrency(deal.commission_amount)} com.
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 shrink-0"
-              onClick={() => setIsEditDialogOpen(true)}
-            >
-              <Edit className="w-4 h-4" />
-              Modifier
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Hero section */}
+      <HeroSection
+        deal={deal}
+        onEdit={() => setIsEditDialogOpen(true)}
+        onNavigateBack={() => navigate('/deals')}
+        onStageChange={(newStage) => stageUpdateMutation.mutate(newStage)}
+        isUpdatingStage={stageUpdateMutation.isPending}
+      />
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -558,26 +736,10 @@ export default function DealDetail() {
 
               <Separator />
 
-              {/* Pipeline stage progress bar */}
+              {/* Stage stepper */}
               <div>
-                <p className="text-xs text-muted-foreground mb-2">Progression</p>
-                <div className="flex gap-0.5">
-                  {PROGRESS_STAGES.map((s, idx) => (
-                    <div
-                      key={s}
-                      title={DEAL_STAGE_LABELS[s]}
-                      className={cn(
-                        'h-1.5 flex-1 rounded-sm transition-colors',
-                        idx <= currentStageIndex && stage !== 'perdu'
-                          ? 'bg-primary'
-                          : 'bg-border'
-                      )}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Étape {Math.max(currentStageIndex + 1, 1)}/{PROGRESS_STAGES.length} — {DEAL_STAGE_LABELS[stage]}
-                </p>
+                <p className="text-xs text-muted-foreground mb-3">Progression</p>
+                <StageStepper deal={deal} currentStageIndex={currentStageIndex} />
               </div>
 
               <Separator />
