@@ -66,14 +66,16 @@ import {
   DollarSign,
   Target,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, formatDate, formatShortDate, formatRelativeTime } from '@/lib/formatters';
 import {
   DEAL_STAGES,
   DEAL_STAGE_LABELS,
+  PIPELINE_STAGE_LABELS,
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_PRIORITIES,
@@ -81,6 +83,7 @@ import {
   ACTIVITY_STATUSES,
   ACTIVITY_STATUS_LABELS,
   type DealStage,
+  type PipelineStage,
 } from '@/lib/constants';
 import { DealHealthScore } from '@/components/DealHealthScore';
 import { format } from 'date-fns';
@@ -91,7 +94,12 @@ import type { Tables } from '@/integrations/supabase/types';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type DealWithRelations = Tables<'deals'> & {
-  contacts?: { full_name: string; id: string } | null;
+  contacts?: {
+    id: string;
+    full_name: string;
+    pipeline_stage: string | null;
+    urgency_score: number | null;
+  } | null;
   properties?: { title: string } | null;
   profiles?: { full_name: string | null } | null;
 };
@@ -123,7 +131,7 @@ const STAGE_PROBABILITY_MAP: Record<DealStage, number> = {
 const PROGRESS_STAGES = DEAL_STAGES.filter((s) => s !== 'perdu');
 
 // Select string for deal queries — used in both the query and optimistic update
-const DEAL_SELECT = '*, contacts:contact_id(id, full_name), properties:property_id(title), profiles:assigned_to(full_name)' as const;
+const DEAL_SELECT = '*, contacts:contact_id(id, full_name, pipeline_stage, urgency_score), properties:property_id(title), profiles:assigned_to(full_name)' as const;
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -382,6 +390,343 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+// ─── InlineNotes ─────────────────────────────────────────────────────────────
+
+interface InlineNotesProps {
+  dealId: string;
+  notes: string | null;
+  organizationId: string;
+}
+
+function InlineNotes({ dealId, notes, organizationId }: InlineNotesProps) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(notes ?? '');
+  const [showCheck, setShowCheck] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isEditing) setEditValue(notes ?? '');
+  }, [notes, isEditing]);
+
+  useEffect(() => {
+    if (isEditing) textareaRef.current?.focus();
+  }, [isEditing]);
+
+  useEffect(() => {
+    return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current); };
+  }, []);
+
+  const saveMutation = useMutation({
+    mutationFn: async (value: string) => {
+      const { error } = await supabase
+        .from('deals')
+        .update({ notes: value || null })
+        .eq('id', dealId)
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+    },
+    onMutate: async (value: string) => {
+      await queryClient.cancelQueries({ queryKey: ['deals', organizationId] });
+      const previous = queryClient.getQueryData<DealWithRelations>(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT]
+      );
+      queryClient.setQueryData<DealWithRelations>(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT],
+        (old) => old ? { ...old, notes: value || null } : old
+      );
+      return { previous };
+    },
+    onSuccess: () => {
+      setShowCheck(true);
+      if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+      checkTimerRef.current = setTimeout(() => setShowCheck(false), 1500);
+    },
+    onError: (_err, _val, context) => {
+      queryClient.setQueryData(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT],
+        context?.previous
+      );
+      setEditValue(notes ?? '');
+      toast.error('Erreur lors de la sauvegarde des notes');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
+    },
+  });
+
+  const handleSave = () => {
+    setIsEditing(false);
+    const trimmed = editValue.trim();
+    if (trimmed !== (notes ?? '').trim()) {
+      saveMutation.mutate(trimmed);
+    }
+  };
+
+  return (
+    <div className="relative group">
+      {isEditing ? (
+        <Textarea
+          ref={textareaRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { setEditValue(notes ?? ''); setIsEditing(false); }
+          }}
+          rows={4}
+          className="text-sm resize-none bg-white/5 border-white/10 focus-visible:ring-blue-500/50"
+        />
+      ) : (
+        <div
+          onClick={() => setIsEditing(true)}
+          className="relative cursor-text rounded-lg px-3 py-2 min-h-[60px] hover:bg-white/5 transition-colors"
+        >
+          {editValue ? (
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap pr-5">{editValue}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground/50 italic">Ajouter des notes...</p>
+          )}
+          <Edit3 className="absolute top-2 right-2 w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+        </div>
+      )}
+      <AnimatePresence>
+        {showCheck && (
+          <motion.span
+            className="absolute top-1 right-1 text-blue-400"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.15 }}
+          >
+            <Check className="w-3.5 h-3.5" />
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── InteractiveTags ──────────────────────────────────────────────────────────
+
+const MAX_TAGS = 8;
+
+interface InteractiveTagsProps {
+  dealId: string;
+  tags: string[];
+  organizationId: string;
+}
+
+function InteractiveTags({ dealId, tags: initialTags, organizationId }: InteractiveTagsProps) {
+  const queryClient = useQueryClient();
+  const [localTags, setLocalTags] = useState(initialTags);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setLocalTags(initialTags); }, [initialTags]);
+  useEffect(() => { if (isAdding) inputRef.current?.focus(); }, [isAdding]);
+
+  const patchTags = useMutation({
+    mutationFn: async (nextTags: string[]) => {
+      const { error } = await supabase
+        .from('deals')
+        .update({ tags: nextTags })
+        .eq('id', dealId)
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+    },
+    onMutate: async (nextTags: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['deals', organizationId] });
+      const previous = queryClient.getQueryData<DealWithRelations>(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT]
+      );
+      queryClient.setQueryData<DealWithRelations>(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT],
+        (old) => old ? { ...old, tags: nextTags } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _tags, context) => {
+      queryClient.setQueryData(
+        ['deals', organizationId, { id: dealId }, DEAL_SELECT],
+        context?.previous
+      );
+      setLocalTags(initialTags);
+      toast.error('Erreur lors de la mise à jour des tags');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals', organizationId] });
+    },
+  });
+
+  const commitAdd = () => {
+    const trimmed = newTag.trim();
+    setIsAdding(false);
+    setNewTag('');
+    if (!trimmed || localTags.includes(trimmed) || localTags.length >= MAX_TAGS) return;
+    const updated = [...localTags, trimmed];
+    setLocalTags(updated);
+    patchTags.mutate(updated);
+  };
+
+  const removeTag = (tag: string) => {
+    const updated = localTags.filter((t) => t !== tag);
+    setLocalTags(updated);
+    patchTags.mutate(updated);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {localTags.map((tag) => (
+        <span
+          key={tag}
+          className="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-xs font-medium"
+        >
+          {tag}
+          <button
+            onClick={() => removeTag(tag)}
+            className="opacity-0 group-hover/tag:opacity-100 transition-opacity hover:text-red-400"
+          >
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </span>
+      ))}
+
+      {localTags.length < MAX_TAGS && (
+        <AnimatePresence mode="wait">
+          {isAdding ? (
+            <motion.div
+              key="tag-input"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.12 }}
+            >
+              <input
+                ref={inputRef}
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitAdd(); }
+                  if (e.key === 'Escape') { setIsAdding(false); setNewTag(''); }
+                }}
+                onBlur={commitAdd}
+                placeholder="Nouveau tag"
+                maxLength={20}
+                className="h-6 w-24 px-2 text-xs rounded-full border border-white/20 bg-white/5 outline-none focus:border-blue-500/50"
+              />
+            </motion.div>
+          ) : (
+            <motion.button
+              key="tag-add-btn"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={() => setIsAdding(true)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/40 text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            >
+              <Plus className="w-2.5 h-2.5" />
+              Ajouter
+            </motion.button>
+          )}
+        </AnimatePresence>
+      )}
+    </div>
+  );
+}
+
+// ─── LinkedEntitiesPanel ──────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  'bg-blue-600',
+  'bg-purple-600',
+  'bg-indigo-600',
+  'bg-blue-500',
+  'bg-violet-600',
+] as const;
+
+function avatarColor(name: string): string {
+  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+}
+
+interface LinkedEntitiesPanelProps {
+  deal: DealWithRelations;
+  onNavigate: (path: string) => void;
+}
+
+function LinkedEntitiesPanel({ deal, onNavigate }: LinkedEntitiesPanelProps) {
+  return (
+    <Card className="border-white/10 bg-card/50">
+      <CardContent className="p-4 space-y-4">
+        {/* Contact block */}
+        {deal.contacts && (
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                'w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0',
+                avatarColor(deal.contacts.full_name)
+              )}
+              style={
+                deal.contacts.urgency_score
+                  ? {
+                      boxShadow: `0 0 0 2px rgba(59,130,246,${(deal.contacts.urgency_score / 125).toFixed(2)})`,
+                    }
+                  : undefined
+              }
+            >
+              {deal.contacts.full_name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <button
+                onClick={() => onNavigate(`/contacts/${deal.contacts!.id}`)}
+                className="text-sm font-medium hover:underline underline-offset-2 hover:text-primary transition-colors block truncate text-left"
+              >
+                {deal.contacts.full_name}
+              </button>
+              {deal.contacts.pipeline_stage && (
+                <Badge className="text-xs mt-0.5 bg-blue-500/20 text-blue-300 border-0 h-4 px-1.5">
+                  {PIPELINE_STAGE_LABELS[deal.contacts.pipeline_stage as PipelineStage] ??
+                    deal.contacts.pipeline_stage}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Agent block */}
+        {deal.profiles?.full_name && (
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                'w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0',
+                avatarColor(deal.profiles.full_name)
+              )}
+            >
+              {deal.profiles.full_name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Agent responsable</p>
+              <p className="text-sm font-medium truncate">{deal.profiles.full_name}</p>
+            </div>
+          </div>
+        )}
+
+        {!deal.contacts && !deal.profiles?.full_name && (
+          <p className="text-xs text-muted-foreground italic">Aucune entité liée</p>
+        )}
+
+        {/* Timestamps */}
+        <div className="pt-2 border-t border-white/5 flex justify-between text-xs text-muted-foreground">
+          <span>Créé {formatShortDate(deal.created_at)}</span>
+          <span>Modifié {formatRelativeTime(deal.updated_at)}</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1034,79 +1379,32 @@ export default function DealDetail() {
 
               <Separator />
 
-              {/* Linked contact */}
+              {/* Notes — inline editable */}
               <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Contact lié</p>
-                {deal.contacts ? (
-                  <button
-                    onClick={() => navigate(`/contacts/${deal.contacts!.id}`)}
-                    className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
-                  >
-                    <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span className="font-medium hover:underline underline-offset-2">
-                      {deal.contacts.full_name}
-                    </span>
-                  </button>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
+                <p className="text-xs text-muted-foreground mb-1.5">Notes</p>
+                <InlineNotes
+                  dealId={deal.id}
+                  notes={deal.notes}
+                  organizationId={organizationId!}
+                />
               </div>
 
-              {/* Linked property */}
+              <Separator />
+
+              {/* Tags — interactive */}
               <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Bien lié</p>
-                {deal.properties ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Home className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span className="font-medium">{deal.properties.title}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
+                <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
+                <InteractiveTags
+                  dealId={deal.id}
+                  tags={tagsArray}
+                  organizationId={organizationId!}
+                />
               </div>
-
-              {/* Assigned to */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Assigné à</p>
-                {deal.profiles?.full_name ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span className="font-medium">{deal.profiles.full_name}</span>
-                  </div>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </div>
-
-              {/* Notes */}
-              {deal.notes && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Notes</p>
-                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{deal.notes}</p>
-                  </div>
-                </>
-              )}
-
-              {/* Tags */}
-              {tagsArray.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tagsArray.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
             </CardContent>
           </Card>
+
+          {/* Linked entities */}
+          <LinkedEntitiesPanel deal={deal} onNavigate={(path) => navigate(path)} />
 
           {/* Financial breakdown */}
           <FinancialBreakdown deal={deal} />
