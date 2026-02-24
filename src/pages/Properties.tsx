@@ -93,6 +93,42 @@ function getDpeAuditStyle(dpeLabel: string | null): string {
   return 'border-green-500/40 text-green-400 hover:bg-green-500/10';
 }
 
+function PropertyKpiBar({ properties }: { properties: Property[] | undefined }) {
+  const counts = {
+    disponible:     properties?.filter(p => p.status === 'disponible').length ?? 0,
+    sous_compromis: properties?.filter(p => p.status === 'sous_compromis').length ?? 0,
+    vendu:          properties?.filter(p => p.status === 'vendu').length ?? 0,
+    total:          properties?.length ?? 0,
+  };
+  const totalValue = properties
+    ?.filter(p => p.status === 'disponible' && p.price)
+    .reduce((sum, p) => sum + (p.price ?? 0), 0) ?? 0;
+
+  const chips = [
+    { label: 'Disponibles',        value: String(counts.disponible),         color: 'text-blue-400' },
+    { label: 'Sous compromis',     value: String(counts.sous_compromis),      color: 'text-purple-400' },
+    { label: 'Vendus',             value: String(counts.vendu),               color: 'text-blue-200' },
+    { label: 'Valeur portefeuille', value: formatCurrency(totalValue),        color: 'text-primary font-mono' },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      {chips.map((chip, i) => (
+        <motion.div
+          key={chip.label}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: i * 0.06 }}
+          className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-xl px-4 py-2"
+        >
+          <span className="text-xs text-muted-foreground">{chip.label}</span>
+          <span className={`text-sm font-semibold ${chip.color}`}>{chip.value}</span>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 function PropertyThumbnail({ images }: { images: string[] | null }) {
   const firstImage = images?.[0] ?? null;
 
@@ -153,15 +189,32 @@ function PropertyCard({ property, index, onClick, onAudit }: { property: Propert
             <Badge className={`text-xs ${getStatusColor(property.status)}`}>
               {PROPERTY_STATUS_LABELS[property.status as keyof typeof PROPERTY_STATUS_LABELS] || property.status}
             </Badge>
-            {property.type && <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}</Badge>}
+            <div className="flex items-center gap-1.5">
+              {property.type && <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400">{PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}</Badge>}
+              {property.transaction_type && (
+                <Badge variant="outline" className="text-xs border-blue-500/20 text-blue-300">
+                  {property.transaction_type === 'vente' ? 'Vente' :
+                   property.transaction_type === 'location' ? 'Location' :
+                   property.transaction_type}
+                </Badge>
+              )}
+            </div>
           </div>
           <p className="font-medium text-sm line-clamp-2 mb-1">{property.title || 'Bien sans titre'}</p>
-          {property.address && (
-            <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{property.address}</p>
+          {(property.city || property.address) && (
+            <p className="text-xs text-muted-foreground line-clamp-1 mb-2 flex items-center gap-1">
+              <MapPin className="w-3 h-3 shrink-0" />
+              {property.city || property.address}
+            </p>
           )}
-          <p className="text-lg font-semibold text-blue-400 mb-3">
+          <p className="text-lg font-semibold text-blue-400 mb-1">
             {property.price ? formatCurrency(property.price) : 'Prix non défini'}
           </p>
+          {property.price && property.surface && property.price > 0 && property.surface > 0 && (
+            <p className="text-xs text-muted-foreground font-mono -mt-0 mb-3">
+              {formatNumber(Math.round(property.price / property.surface))} €/m²
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
               {property.surface && (
@@ -209,6 +262,7 @@ export default function Properties() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [auditProperty, setAuditProperty] = useState<Property | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'price_asc' | 'price_desc' | 'surface'>('date');
   const { organizationId } = useAuth();
 
   const { data: properties, isLoading } = useOrgQuery<Property[]>('properties', {
@@ -228,6 +282,13 @@ export default function Properties() {
                           (p.title?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesStatus;
+  });
+
+  const sortedProperties = [...(filteredProperties ?? [])].sort((a, b) => {
+    if (sortBy === 'price_asc')  return (a.price ?? 0) - (b.price ?? 0);
+    if (sortBy === 'price_desc') return (b.price ?? 0) - (a.price ?? 0);
+    if (sortBy === 'surface')    return (b.surface ?? 0) - (a.surface ?? 0);
+    return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
   });
 
   return (
@@ -260,6 +321,9 @@ export default function Properties() {
         contacts={contacts}
       />
 
+      {/* KPI Bar */}
+      <PropertyKpiBar properties={properties} />
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1 max-w-sm">
@@ -285,6 +349,17 @@ export default function Properties() {
                 </div>
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Trier par" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date">Plus récents</SelectItem>
+            <SelectItem value="price_desc">Prix décroissant</SelectItem>
+            <SelectItem value="price_asc">Prix croissant</SelectItem>
+            <SelectItem value="surface">Surface</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -320,7 +395,7 @@ export default function Properties() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProperties?.map((property, index) => (
+          {sortedProperties.map((property, index) => (
             <PropertyCard
               key={property.id}
               property={property}
