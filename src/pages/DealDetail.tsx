@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import useEmblaCarousel from 'embla-carousel-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,7 @@ import {
   ChevronsUpDown,
   DollarSign,
   Target,
+  ChevronRight,
 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
@@ -380,6 +382,258 @@ function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CLOSED_STAGES: DealStage[] = ['vendu', 'perdu'];
+
+interface FinancialBreakdownProps {
+  deal: DealWithRelations;
+}
+
+function FinancialBreakdown({ deal }: FinancialBreakdownProps) {
+  const stage = deal.stage as DealStage;
+  const now = Date.now();
+  const weightedValue = deal.amount * ((deal.probability ?? 0) / 100);
+
+  let closureWarning: React.ReactNode = null;
+  if (deal.expected_close_date && !CLOSED_STAGES.includes(stage)) {
+    const closeMs = new Date(deal.expected_close_date).getTime();
+    if (closeMs < now) {
+      const overdueDays = Math.floor((now - closeMs) / 86400000);
+      closureWarning = (
+        <div className="px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-medium">
+          Clôture dépassée · {overdueDays}j
+        </div>
+      );
+    } else {
+      const daysUntil = Math.floor((closeMs - now) / 86400000);
+      if (daysUntil <= 7) {
+        closureWarning = (
+          <div className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-medium">
+            Clôture imminente · {daysUntil}j
+          </div>
+        );
+      }
+    }
+  }
+
+  return (
+    <Card className="border-white/10 bg-card/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary" />
+          Analyse financière
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {closureWarning}
+
+        <div className="flex justify-between items-baseline">
+          <span className="text-xs text-muted-foreground">Prix de vente</span>
+          <span className="text-lg font-mono font-semibold text-primary">
+            {formatCurrency(deal.amount)}
+          </span>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">Taux commission</span>
+          <span className="text-sm font-medium font-mono">{deal.commission_rate ?? 5} %</span>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">Commission brute</span>
+          <span className="text-sm font-medium font-mono">
+            {formatCurrency(deal.commission_amount ?? 0)}
+          </span>
+        </div>
+
+        <Separator />
+
+        <div className="flex justify-between items-baseline">
+          <div>
+            <p className="text-xs font-medium">Valeur pondérée</p>
+            <p className="text-xs text-muted-foreground">Pipeline pondéré</p>
+          </div>
+          <span className="text-base font-mono font-semibold">
+            {formatCurrency(weightedValue)}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PropertyPreviewData = Pick<
+  Tables<'properties'>,
+  'id' | 'title' | 'address' | 'price' | 'surface' | 'type' | 'dpe_label' | 'images' | 'description'
+>;
+
+const DPE_BADGE_COLORS: Record<string, string> = {
+  A: 'bg-blue-600/20 text-blue-200',
+  B: 'bg-blue-500/20 text-blue-300',
+  C: 'bg-blue-400/20 text-blue-300',
+  D: 'bg-slate-500/20 text-slate-300',
+  E: 'bg-slate-600/20 text-slate-400',
+  F: 'bg-purple-800/20 text-purple-400',
+  G: 'bg-purple-900/20 text-purple-500',
+};
+
+interface PropertyPreviewProps {
+  propertyId: string;
+  organizationId: string;
+  onNavigate: (path: string) => void;
+}
+
+function PropertyPreview({ propertyId, organizationId, onNavigate }: PropertyPreviewProps) {
+  const { data: property, isLoading } = useQuery<PropertyPreviewData>({
+    queryKey: ['property', propertyId, organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, title, address, price, surface, type, dpe_label, images, description')
+        .eq('id', propertyId)
+        .eq('organization_id', organizationId)
+        .single();
+      if (error) throw error;
+      return data as PropertyPreviewData;
+    },
+    enabled: !!propertyId && !!organizationId,
+  });
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    emblaApi.on('select', onSelect);
+    return () => { emblaApi.off('select', onSelect); };
+  }, [emblaApi]);
+
+  if (isLoading) {
+    return (
+      <Card className="border-white/10 bg-card/50">
+        <CardContent className="p-4 space-y-3">
+          <Skeleton className="h-[140px] w-full rounded-xl" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!property) return null;
+
+  const photos = property.images ?? [];
+
+  return (
+    <Card className="border-white/10 bg-card/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Home className="w-4 h-4 text-primary" />
+            Bien associé
+          </CardTitle>
+          <button
+            onClick={() => onNavigate(`/properties/${property.id}`)}
+            className="text-xs text-primary hover:underline underline-offset-2 flex items-center gap-0.5 transition-colors"
+          >
+            Voir la fiche
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Photo carousel or placeholder */}
+        {photos.length > 0 ? (
+          <div className="space-y-2">
+            <div className="overflow-hidden rounded-xl" ref={emblaRef}>
+              <div className="flex">
+                {photos.map((src, i) => (
+                  <div key={i} className="flex-[0_0_100%] min-w-0">
+                    <img
+                      src={src}
+                      alt={`Photo ${i + 1}`}
+                      className="w-full h-[200px] object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {photos.length > 1 && (
+              <div className="flex justify-center gap-1.5">
+                {photos.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => emblaApi?.scrollTo(i)}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all duration-200',
+                      i === selectedIndex ? 'w-4 bg-primary' : 'w-2 bg-muted'
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 h-28 rounded-xl bg-muted/20">
+            <Home className="w-6 h-6 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Aucune photo disponible</span>
+          </div>
+        )}
+
+        {/* Title + address */}
+        <p className="text-sm font-medium leading-tight">{property.title}</p>
+        {property.address && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <MapPin className="w-3 h-3 shrink-0" />
+            {property.address}
+          </p>
+        )}
+
+        {/* Facts grid */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs pt-1">
+          <div>
+            <span className="text-muted-foreground">Type</span>
+            <p className="font-medium capitalize mt-0.5">{property.type ?? '—'}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Surface</span>
+            <p className="font-medium font-mono mt-0.5">
+              {property.surface != null ? `${property.surface} m²` : '—'}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Prix</span>
+            <p className="font-medium font-mono mt-0.5">
+              {property.price != null ? formatCurrency(property.price) : '—'}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">DPE</span>
+            <div className="mt-0.5">
+              {property.dpe_label ? (
+                <Badge
+                  className={cn(
+                    'text-xs border-0',
+                    DPE_BADGE_COLORS[property.dpe_label] ?? 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {property.dpe_label}
+                </Badge>
+              ) : (
+                <span className="font-medium">—</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -853,6 +1107,18 @@ export default function DealDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Financial breakdown */}
+          <FinancialBreakdown deal={deal} />
+
+          {/* Property preview */}
+          {deal.property_id && organizationId && (
+            <PropertyPreview
+              propertyId={deal.property_id}
+              organizationId={organizationId}
+              onNavigate={(path) => navigate(path)}
+            />
+          )}
         </div>
 
         {/* ── Right column: Tabs ── */}
