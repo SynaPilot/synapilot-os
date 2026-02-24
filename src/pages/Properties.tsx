@@ -93,6 +93,45 @@ function getDpeAuditStyle(dpeLabel: string | null): string {
   return 'border-green-500/40 text-green-400 hover:bg-green-500/10';
 }
 
+function PropertyThumbnail({ images }: { images: string[] | null }) {
+  const firstImage = images?.[0] ?? null;
+
+  if (firstImage) {
+    return (
+      <div className="h-36 overflow-hidden relative">
+        <img
+          src={firstImage}
+          alt="Photo du bien"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+            e.currentTarget.parentElement
+              ?.querySelector('.thumb-fallback')
+              ?.classList.remove('hidden');
+          }}
+        />
+        <div className="thumb-fallback hidden h-full w-full absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
+          <Home className="w-10 h-10 text-blue-400/40" />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/40 to-transparent" />
+        {(images?.length ?? 0) > 1 && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-xs font-mono">
+            <Camera className="w-3 h-3" />
+            {images!.length}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-36 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
+      <Home className="w-10 h-10 text-blue-400/40" />
+    </div>
+  );
+}
+
 function PropertyCard({ property, index, onClick, onAudit }: { property: Property; index: number; onClick: () => void; onAudit: () => void }) {
   const getStatusColor = (status: string | null) => {
     return PREMIUM_STATUS_COLORS[status || ''] || 'bg-muted text-muted-foreground';
@@ -108,9 +147,7 @@ function PropertyCard({ property, index, onClick, onAudit }: { property: Propert
       className="cursor-pointer"
     >
       <Card className="glass border-white/10 hover:border-blue-500/30 transition-all group overflow-hidden">
-        <div className="h-36 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
-          <Home className="w-10 h-10 text-blue-400/40" />
-        </div>
+        <PropertyThumbnail images={property.images} />
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">
             <Badge className={`text-xs ${getStatusColor(property.status)}`}>
