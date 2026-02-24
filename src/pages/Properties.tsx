@@ -33,6 +33,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertTriangle,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { GuidedEmptyState } from '@/components/GuidedEmptyState';
 import { EmptyState } from '@/components/EmptyState';
@@ -255,6 +257,122 @@ function PropertyCard({ property, index, onClick, onAudit }: { property: Propert
   );
 }
 
+function PropertyListRow({ property, index, onClick, onAudit }: { property: Property; index: number; onClick: () => void; onAudit: () => void }) {
+  const firstImage = property.images?.[0] ?? null;
+  const pricePerM2 =
+    property.price && property.surface && property.price > 0 && property.surface > 0
+      ? Math.round(property.price / property.surface)
+      : null;
+
+  const specs = [
+    property.surface ? `${formatNumber(property.surface)}m²` : null,
+    property.rooms    ? `${property.rooms}p`                  : null,
+    property.bedrooms ? `${property.bedrooms}ch`               : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.03 }}
+      onClick={onClick}
+      className="cursor-pointer flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-blue-500/20 transition-colors"
+    >
+      {/* Thumbnail */}
+      <div className="w-full h-12 sm:w-20 sm:h-[60px] rounded-lg overflow-hidden relative shrink-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
+        {firstImage ? (
+          <>
+            <img
+              src={firstImage}
+              alt="Photo du bien"
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                e.currentTarget.parentElement
+                  ?.querySelector('.list-thumb-fallback')
+                  ?.classList.remove('hidden');
+              }}
+            />
+            <div className="list-thumb-fallback hidden absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
+              <Home className="w-5 h-5 text-blue-400/40" />
+            </div>
+          </>
+        ) : (
+          <Home className="w-5 h-5 text-blue-400/40" />
+        )}
+      </div>
+
+      {/* Title + City */}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{property.title || 'Bien sans titre'}</p>
+        {(property.city || property.address) && (
+          <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3 h-3 shrink-0" />
+            {property.city || property.address}
+          </p>
+        )}
+      </div>
+
+      {/* Type badges */}
+      <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+        {property.type && (
+          <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400">
+            {PROPERTY_TYPE_LABELS[property.type as keyof typeof PROPERTY_TYPE_LABELS] || property.type}
+          </Badge>
+        )}
+        {property.transaction_type && (
+          <Badge variant="outline" className="text-xs border-blue-500/20 text-blue-300">
+            {property.transaction_type === 'vente' ? 'Vente' :
+             property.transaction_type === 'location' ? 'Location' :
+             property.transaction_type}
+          </Badge>
+        )}
+      </div>
+
+      {/* Price + €/m² */}
+      <div className="hidden sm:block shrink-0 text-right">
+        <p className="font-semibold text-blue-400 font-mono text-sm">
+          {property.price ? formatCurrency(property.price) : '—'}
+        </p>
+        {pricePerM2 && (
+          <p className="text-xs text-muted-foreground font-mono">
+            {formatNumber(pricePerM2)} €/m²
+          </p>
+        )}
+      </div>
+
+      {/* Surface / Rooms */}
+      {specs && (
+        <div className="hidden md:block shrink-0 text-xs font-mono text-muted-foreground whitespace-nowrap">
+          {specs}
+        </div>
+      )}
+
+      {/* Status badge */}
+      <div className="hidden sm:block shrink-0">
+        <Badge className={`text-xs ${PREMIUM_STATUS_COLORS[property.status || ''] || 'bg-muted text-muted-foreground'}`}>
+          {PROPERTY_STATUS_LABELS[property.status as keyof typeof PROPERTY_STATUS_LABELS] || property.status}
+        </Badge>
+      </div>
+
+      {/* Audit button */}
+      <Button
+        variant="outline"
+        size="sm"
+        className={`shrink-0 text-xs gap-1.5 ${getDpeAuditStyle(property.dpe_label)}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAudit();
+        }}
+      >
+        <DpeAuditIcon dpeLabel={property.dpe_label} />
+        Audit
+      </Button>
+    </motion.div>
+  );
+}
+
 export default function Properties() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -263,6 +381,7 @@ export default function Properties() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [auditProperty, setAuditProperty] = useState<Property | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'price_asc' | 'price_desc' | 'surface'>('date');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const { organizationId } = useAuth();
 
   const { data: properties, isLoading } = useOrgQuery<Property[]>('properties', {
@@ -305,13 +424,32 @@ export default function Properties() {
           <h1 className="text-3xl font-semibold tracking-tight">Biens</h1>
           <p className="text-muted-foreground">{properties?.length || 0} biens en portefeuille</p>
         </div>
-        <Button 
-          onClick={() => setIsDialogOpen(true)}
-          className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nouveau bien
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-white/10 bg-white/5 p-1 gap-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              aria-label="Vue grille"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              aria-label="Vue liste"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <Button
+            onClick={() => setIsDialogOpen(true)}
+            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02]"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau bien
+          </Button>
+        </div>
       </div>
 
       {/* Property Form Dialog */}
@@ -394,20 +532,40 @@ export default function Properties() {
           }}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedProperties.map((property, index) => (
-            <PropertyCard
-              key={property.id}
-              property={property}
-              index={index}
-              onClick={() => {
-                setSelectedPropertyId(property.id);
-                setIsSheetOpen(true);
-              }}
-              onAudit={() => setAuditProperty(property)}
-            />
-          ))}
-        </div>
+        <>
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedProperties.map((property, index) => (
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  index={index}
+                  onClick={() => {
+                    setSelectedPropertyId(property.id);
+                    setIsSheetOpen(true);
+                  }}
+                  onAudit={() => setAuditProperty(property)}
+                />
+              ))}
+            </div>
+          )}
+          {viewMode === 'list' && (
+            <div className="flex flex-col gap-2">
+              {sortedProperties.map((property, index) => (
+                <PropertyListRow
+                  key={property.id}
+                  property={property}
+                  index={index}
+                  onClick={() => {
+                    setSelectedPropertyId(property.id);
+                    setIsSheetOpen(true);
+                  }}
+                  onAudit={() => setAuditProperty(property)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Property Details Sheet */}
