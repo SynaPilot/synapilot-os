@@ -34,6 +34,7 @@ const Contacts = lazyWithPrefetch(() => import("./pages/Contacts"));
 const ContactDetail = lazyWithPrefetch(() => import("./pages/ContactDetail"));
 const Properties = lazyWithPrefetch(() => import("./pages/Properties"));
 const Deals = lazyWithPrefetch(() => import("./pages/Deals"));
+const DealDetail = lazyWithPrefetch(() => import("./pages/DealDetail"));
 const Activities = lazyWithPrefetch(() => import("./pages/Activities"));
 const Stats = lazyWithPrefetch(() => import("./pages/Stats"));
 const Settings = lazyWithPrefetch(() => import("./pages/Settings"));
@@ -122,6 +123,9 @@ function AppRoutes() {
       } />
       <Route path="/deals" element={
         <ProtectedRoute><Deals /></ProtectedRoute>
+      } />
+      <Route path="/deals/:id" element={
+        <ProtectedRoute><DealDetail /></ProtectedRoute>
       } />
       <Route path="/activities" element={
         <ProtectedRoute><Activities /></ProtectedRoute>

@@ -328,7 +328,7 @@ export function DailyBrief({ className }: Props) {
     if (action.entityType === 'contact') {
       navigate(`/contacts/${action.entityId}`);
     } else {
-      navigate('/deals');
+      navigate(`/deals/${action.entityId}`);
     }
   }, [navigate]);
 

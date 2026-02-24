@@ -997,7 +997,7 @@ export default function ContactDetail() {
                     key={deal.id}
                     whileHover={{ scale: 1.01 }}
                     className="p-3 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-colors cursor-pointer"
-                    onClick={() => navigate('/deals')}
+                    onClick={() => navigate(`/deals/${deal.id}`)}
                   >
                     <div className="flex items-center justify-between">
                       <div>

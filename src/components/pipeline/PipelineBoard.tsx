@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -178,6 +179,7 @@ function DealSuperCard({ deal, stageId, isDragging }: DealSuperCardProps) {
 
 // ============ SORTABLE DEAL CARD ============
 function SortableDealCard({ deal, stageId }: { deal: Deal; stageId: string }) {
+  const navigate = useNavigate();
   const {
     attributes,
     listeners,
@@ -199,6 +201,9 @@ function SortableDealCard({ deal, stageId }: { deal: Deal; stageId: string }) {
       {...attributes}
       {...listeners}
       className="cursor-grab active:cursor-grabbing"
+      onClick={() => {
+        if (!isDragging) navigate(`/deals/${deal.id}`);
+      }}
     >
       <DealSuperCard deal={deal} stageId={stageId} isDragging={isDragging} />
     </div>
