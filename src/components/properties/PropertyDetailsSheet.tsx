@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -136,6 +137,16 @@ const TRANSACTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   'viager': <Heart className="w-4 h-4" />,
 };
 
+const DPE_BADGE_COLORS: Record<string, string> = {
+  'A': 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+  'B': 'bg-green-500/20 text-green-400 border border-green-500/30',
+  'C': 'bg-lime-500/20 text-lime-400 border border-lime-500/30',
+  'D': 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30',
+  'E': 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+  'F': 'bg-red-500/20 text-red-400 border border-red-500/30',
+  'G': 'bg-red-700/30 text-red-300 border border-red-700/40',
+};
+
 // Edit form schema
 const editPropertySchema = z.object({
   title: z.string().min(5, 'Titre requis (min 5 caractères)').max(255),
@@ -150,6 +161,17 @@ const editPropertySchema = z.object({
   contact_id: z.string().uuid().optional().nullable(),
   assigned_to: z.string().uuid().optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
+  dpe_label: z.string().max(1).optional().nullable(),
+  ges_label: z.string().max(1).optional().nullable(),
+  mandate_number: z.string().max(100).optional().nullable(),
+  mandate_type: z.string().max(50).optional().nullable(),
+  floor: z.number().min(0).max(200).optional().nullable(),
+  total_floors: z.number().min(0).max(200).optional().nullable(),
+  year_built: z.number().min(1800).max(2030).optional().nullable(),
+  heating_type: z.string().max(100).optional().nullable(),
+  co_ownership_charges: z.number().min(0).optional().nullable(),
+  tax_property: z.number().min(0).optional().nullable(),
+  cadastral_ref: z.string().max(50).optional().nullable(),
 });
 
 type EditPropertyFormValues = z.infer<typeof editPropertySchema>;
@@ -160,6 +182,7 @@ const premiumSelectTriggerClass = "bg-white/10 hover:bg-white/15 border border-w
 export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }: PropertyDetailsSheetProps) {
   const { organizationId } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -289,6 +312,17 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
         contact_id: property.contact_id,
         assigned_to: property.assigned_to,
         description: property.description,
+        dpe_label: property.dpe_label,
+        ges_label: property.ges_label,
+        mandate_number: property.mandate_number,
+        mandate_type: property.mandate_type,
+        floor: property.floor,
+        total_floors: property.total_floors,
+        year_built: property.year_built,
+        heating_type: property.heating_type,
+        co_ownership_charges: property.co_ownership_charges,
+        tax_property: property.tax_property,
+        cadastral_ref: property.cadastral_ref,
       });
     }
   }, [property, form]);
@@ -339,6 +373,17 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
           contact_id: values.contact_id || null,
           assigned_to: values.assigned_to || null,
           description: values.description || null,
+          dpe_label: values.dpe_label || null,
+          ges_label: values.ges_label || null,
+          mandate_number: values.mandate_number || null,
+          mandate_type: values.mandate_type || null,
+          floor: values.floor ?? null,
+          total_floors: values.total_floors ?? null,
+          year_built: values.year_built ?? null,
+          heating_type: values.heating_type || null,
+          co_ownership_charges: values.co_ownership_charges ?? null,
+          tax_property: values.tax_property ?? null,
+          cadastral_ref: values.cadastral_ref || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', propertyId)
@@ -760,7 +805,94 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                             <p className="text-white">{property.bedrooms || 'N/A'}</p>
                           </div>
                         </div>
+                        {property.floor != null && (
+                          <div className="flex items-start gap-3">
+                            <Building2 className="w-4 h-4 text-blue-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Étage</p>
+                              <p className="text-white">Étage {property.floor}{property.total_floors != null ? ` / ${property.total_floors}` : ''}</p>
+                            </div>
+                          </div>
+                        )}
+                        {property.year_built != null && (
+                          <div className="flex items-start gap-3">
+                            <Calendar className="w-4 h-4 text-purple-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Année de construction</p>
+                              <p className="text-white">{property.year_built}</p>
+                            </div>
+                          </div>
+                        )}
+                        {property.heating_type && (
+                          <div className="flex items-start gap-3">
+                            <Home className="w-4 h-4 text-blue-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Chauffage</p>
+                              <p className="text-white">{property.heating_type}</p>
+                            </div>
+                          </div>
+                        )}
+                        {property.co_ownership_charges != null && property.co_ownership_charges > 0 && (
+                          <div className="flex items-start gap-3">
+                            <Euro className="w-4 h-4 text-purple-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Charges de copropriété</p>
+                              <p className="text-white">{formatCurrency(property.co_ownership_charges)}/mois</p>
+                            </div>
+                          </div>
+                        )}
+                        {property.tax_property != null && property.tax_property > 0 && (
+                          <div className="flex items-start gap-3">
+                            <Euro className="w-4 h-4 text-blue-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Taxe foncière</p>
+                              <p className="text-white">{formatCurrency(property.tax_property)}/an</p>
+                            </div>
+                          </div>
+                        )}
+                        {property.cadastral_ref && (
+                          <div className="flex items-start gap-3">
+                            <FileText className="w-4 h-4 text-purple-400 mt-1" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Référence cadastrale</p>
+                              <p className="text-white font-mono text-sm">{property.cadastral_ref}</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Performance Énergétique */}
+                      {property.dpe_label && (
+                        <div className="pt-4 border-t border-white/10 space-y-3">
+                          <h4 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Performance Énergétique</h4>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Badge className={`text-sm px-3 py-1 ${DPE_BADGE_COLORS[property.dpe_label.toUpperCase()] || 'bg-white/10 text-white/70 border border-white/20'}`}>
+                              DPE · {property.dpe_label.toUpperCase()}
+                            </Badge>
+                            {property.ges_label && (
+                              <Badge className={`text-sm px-3 py-1 ${DPE_BADGE_COLORS[property.ges_label.toUpperCase()] || 'bg-white/10 text-white/70 border border-white/20'}`}>
+                                GES · {property.ges_label.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
+                          {property.energy_rating && (
+                            <p className="text-sm text-muted-foreground">Conso : {property.energy_rating}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Mandat */}
+                      {(property.mandate_number || property.mandate_type) && (
+                        <div className="pt-4 border-t border-white/10 space-y-3">
+                          <h4 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">Mandat</h4>
+                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/5">
+                            <Key className="w-4 h-4 text-blue-400 shrink-0" />
+                            <span className="text-white text-sm">
+                              Mandat {property.mandate_type || '—'} n°{property.mandate_number || '—'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
 
@@ -863,7 +995,7 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                                     </p>
                                   )}
                                   {proposal.opened_at && (
-                                    <p className="text-xs text-green-400">
+                                    <p className="text-xs text-blue-400">
                                       Ouvert le {new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(proposal.opened_at))}
                                     </p>
                                   )}
@@ -871,10 +1003,10 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                               </div>
                               <Badge className={`shrink-0 ${
                                 proposal.opened_at
-                                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                                   : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                               }`}>
-                                {proposal.opened_at ? 'Ouverte' : 'Envoyée'}
+                                {proposal.opened_at ? 'Vue ✓' : 'Envoyée'}
                               </Badge>
                             </div>
                           ))}
@@ -925,8 +1057,8 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                               Math.abs(marketDelta) <= 5
                                 ? 'bg-white/5 text-white/70'
                                 : marketDelta > 0
-                                  ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                  : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                             }`}>
                               <TrendingUp className="w-4 h-4 shrink-0" />
                               <span>
@@ -969,10 +1101,8 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                       variant="outline" 
                       className="border-blue-500/30 hover:bg-blue-500/10 text-blue-400"
                       onClick={() => {
-                        // TODO: Open activity creation with property_id prefilled
-                        toast.success('Fonctionnalité à venir', {
-                          description: 'Création d\'activité liée au bien'
-                        });
+                        onOpenChange(false);
+                        navigate(`/activities?property_id=${property.id}`);
                       }}
                     >
                       <Calendar className="w-4 h-4 mr-2" />
@@ -982,10 +1112,8 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                       variant="outline" 
                       className="border-purple-500/30 hover:bg-purple-500/10 text-purple-400"
                       onClick={() => {
-                        // TODO: Open deal creation with property_id prefilled
-                        toast.success('Fonctionnalité à venir', {
-                          description: 'Création d\'opportunité liée au bien'
-                        });
+                        onOpenChange(false);
+                        navigate(`/deals?property_id=${property.id}`);
                       }}
                     >
                       <Briefcase className="w-4 h-4 mr-2" />
@@ -1258,7 +1386,159 @@ export default function PropertyDetailsSheet({ propertyId, open, onOpenChange }:
                 </div>
               </div>
 
-              {/* Section 2.5: Photos */}
+              {/* Section 2.5: Détails techniques */}
+              <div className="border-l-2 border-blue-400/40 pl-4 bg-blue-400/5 rounded-r-xl py-4 pr-4 space-y-6">
+                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-4">Détails techniques</h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="mandate_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">Type de mandat</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ''} placeholder="Exclusif, simple…" className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mandate_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">N° de mandat</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ''} className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dpe_label"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">DPE (A-G)</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ''} maxLength={1} placeholder="A" className={`${premiumInputClass} uppercase`} onChange={(e) => field.onChange(e.target.value.toUpperCase() || null)} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="ges_label"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">GES (A-G)</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={field.value || ''} maxLength={1} placeholder="A" className={`${premiumInputClass} uppercase`} onChange={(e) => field.onChange(e.target.value.toUpperCase() || null)} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="floor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">Étage</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)} className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="total_floors"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">Nb. étages</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)} className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="year_built"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white font-semibold">Année de construction</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} value={field.value ?? ''} placeholder="2005" onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)} className={premiumInputClass} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="heating_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white font-semibold">Chauffage</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} placeholder="Gaz collectif, électrique…" className={premiumInputClass} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="co_ownership_charges"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">Charges copro (€/mois)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)} className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tax_property"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white font-semibold">Taxe foncière (€/an)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)} className={premiumInputClass} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="cadastral_ref"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white font-semibold">Référence cadastrale</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} placeholder="AB 1234" className={`${premiumInputClass} font-mono`} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Section 3: Photos */}
               <div className="border-l-2 border-blue-400/30 pl-4 bg-blue-400/5 rounded-r-xl py-4 pr-4 space-y-4">
                 <h3 className="text-sm font-semibold text-blue-400/80 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4" />
