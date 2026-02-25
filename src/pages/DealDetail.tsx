@@ -73,6 +73,7 @@ import {
   Target,
   ChevronRight,
   X,
+  Frown,
 } from 'lucide-react';
 import { useOrgQuery } from '@/hooks/useOrgQuery';
 import { useAuth } from '@/contexts/AuthContext';
@@ -210,6 +211,41 @@ function getStatusColor(status: string | null): string {
   return colors[status || ''] || 'bg-muted text-muted-foreground';
 }
 
+function getActivityBorderColor(type: string | null): string {
+  const colors: Record<string, string> = {
+    appel: 'border-l-blue-400',
+    visite: 'border-l-purple-400',
+    email: 'border-l-blue-300',
+  };
+  return colors[type || ''] || 'border-l-white/20';
+}
+
+function ProbabilityArc({ probability }: { probability: number }) {
+  const r = 8;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (probability / 100) * circumference;
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" className="shrink-0">
+      <circle cx="14" cy="14" r={r} fill="none" stroke="currentColor" strokeWidth="2" className="text-white/10" />
+      <circle
+        cx="14" cy="14" r={r} fill="none" strokeWidth="2"
+        stroke="url(#prob-grad)"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform="rotate(-90 14 14)"
+        className="transition-all duration-[800ms] ease-out"
+      />
+      <defs>
+        <linearGradient id="prob-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -260,6 +296,15 @@ const activityItemVariants = {
   animate: { opacity: 1, x: 0, transition: { duration: 0.2 } },
 };
 
+const sectionContainerVariants = {
+  initial: {},
+  animate: { transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
+};
+const sectionItemVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+};
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 interface HeroSectionProps {
@@ -273,183 +318,189 @@ interface HeroSectionProps {
 function HeroSection({ deal, onEdit, onNavigateBack, onStageChange, isUpdatingStage }: HeroSectionProps) {
   const stage = deal.stage as DealStage;
   return (
-    <div className="relative overflow-hidden rounded-xl border border-white/10">
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-blue-800/10 bg-[size:200%]"
-        animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-      />
-      <div className="relative p-6 space-y-4">
-        {/* Row 1: nav + actions */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <Button variant="ghost" size="sm" onClick={onNavigateBack} className="gap-2 -ml-2">
+    <>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .hero-shimmer:hover::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+          background-size: 200% 100%;
+          animation: shimmer 3s ease-in-out infinite;
+          pointer-events: none;
+          border-radius: inherit;
+        }
+      `}</style>
+      <div className="relative overflow-hidden rounded-xl border border-white/10 hero-shimmer">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent" />
+        <div className="relative p-6">
+          <Button variant="ghost" size="sm" onClick={onNavigateBack} className="gap-2 -ml-2 mb-4">
             <ArrowLeft className="w-4 h-4" />
             Retour au pipeline
           </Button>
-          <div className="flex items-center gap-2">
-            <Select
-              value={stage}
-              onValueChange={(v) => onStageChange(v as DealStage)}
-              disabled={isUpdatingStage}
-            >
-              <SelectTrigger className="w-44 h-8 text-xs bg-white/5 border-white/10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DEAL_STAGES.map((s) => (
-                  <SelectItem key={s} value={s} className="text-xs">
-                    {DEAL_STAGE_LABELS[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 shrink-0 bg-white/5 border-white/10"
-              onClick={onEdit}
-            >
-              <Edit className="w-4 h-4" />
-              Modifier
-            </Button>
+          <div className="flex items-start justify-between gap-6 flex-wrap">
+            {/* Left column */}
+            <div className="flex-1 min-w-0 space-y-3">
+              <h1 className="text-3xl font-display font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                {deal.name}
+              </h1>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                {deal.contacts && (
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5" />
+                    {deal.contacts.full_name}
+                  </span>
+                )}
+                {deal.properties && (
+                  <span className="flex items-center gap-1.5">
+                    <Home className="w-3.5 h-3.5" />
+                    {deal.properties.title}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge className={cn('text-xs border-0', STAGE_MINI_BADGE[stage])}>
+                  {DEAL_STAGE_LABELS[stage]}
+                </Badge>
+                <span className="text-lg font-mono font-semibold">{formatCurrency(deal.amount)}</span>
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="shrink-0 space-y-4 min-w-[220px]">
+              <DealHealthScore
+                deal={{
+                  updated_at: deal.updated_at,
+                  probability: deal.probability,
+                  expected_close_date: deal.expected_close_date,
+                  stage: deal.stage,
+                }}
+                showLabel
+              />
+              <div className="text-sm">
+                <span className="text-muted-foreground">Commission: </span>
+                <span className="font-mono font-semibold">{formatCurrency(deal.commission_amount ?? 0)}</span>
+                <span className="text-muted-foreground ml-1.5 text-xs">({deal.commission_rate ?? 5}%)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={stage}
+                  onValueChange={(v) => onStageChange(v as DealStage)}
+                  disabled={isUpdatingStage}
+                >
+                  <SelectTrigger className="w-44 h-8 text-xs bg-white/5 border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEAL_STAGES.map((s) => (
+                      <SelectItem key={s} value={s} className="text-xs">
+                        {DEAL_STAGE_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 shrink-0 bg-white/5 border-white/10"
+                  onClick={onEdit}
+                >
+                  <Edit className="w-4 h-4" />
+                  Modifier
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Row 2: deal name */}
-        <h1 className="text-3xl font-display font-semibold tracking-tight">{deal.name}</h1>
-
-        {/* Row 3: KPI chips */}
-        <motion.div
-          className="flex flex-wrap gap-3"
-          variants={kpiContainerVariants}
-          initial="initial"
-          animate="animate"
-        >
-          <motion.div
-            variants={kpiItemVariants}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
-          >
-            <DollarSign className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="text-xs text-muted-foreground">Montant</span>
-            <span className="text-sm font-semibold font-mono">{formatCurrency(deal.amount)}</span>
-          </motion.div>
-          <motion.div
-            variants={kpiItemVariants}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
-          >
-            <TrendingUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="text-xs text-muted-foreground">Commission</span>
-            <span className="text-sm font-semibold font-mono">
-              {formatCurrency(deal.commission_amount ?? 0)}
-            </span>
-          </motion.div>
-          <motion.div
-            variants={kpiItemVariants}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5"
-          >
-            <Target className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="text-xs text-muted-foreground">Probabilité</span>
-            <span className="text-sm font-semibold">{deal.probability ?? 0} %</span>
-          </motion.div>
-        </motion.div>
       </div>
-    </div>
+    </>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface StageStepperProps {
+interface HorizontalStageTrackerProps {
   deal: DealWithRelations;
   currentStageIndex: number;
+  onStageChange: (stage: DealStage) => void;
+  isUpdatingStage: boolean;
 }
 
-function StageStepper({ deal, currentStageIndex }: StageStepperProps) {
+function HorizontalStageTracker({ deal, currentStageIndex, onStageChange, isUpdatingStage }: HorizontalStageTrackerProps) {
   const stage = deal.stage as DealStage;
-  const daysInStage = Math.floor(
-    (Date.now() - new Date(deal.updated_at).getTime()) / 86400000
-  );
+
+  if (stage === 'perdu') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3 px-6 py-4 rounded-xl bg-red-500/10 border border-red-500/20"
+      >
+        <Frown className="w-5 h-5 text-red-400" />
+        <span className="text-sm font-semibold text-red-400">Opportunité perdue</span>
+      </motion.div>
+    );
+  }
 
   return (
-    <motion.div variants={stepperContainerVariants} initial="initial" animate="animate">
-      {PROGRESS_STAGES.map((s, idx) => {
-        const isCompleted = idx < currentStageIndex && stage !== 'perdu';
-        const isCurrent = idx === currentStageIndex && stage !== 'perdu';
-        const isLast = idx === PROGRESS_STAGES.length - 1;
+    <motion.div
+      className="overflow-x-auto pb-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+      variants={stepperContainerVariants}
+      initial="initial"
+      animate="animate"
+    >
+      <div className="flex items-center min-w-max">
+        {PROGRESS_STAGES.map((s, idx) => {
+          const isCompleted = idx < currentStageIndex;
+          const isCurrent = idx === currentStageIndex;
+          const isLast = idx === PROGRESS_STAGES.length - 1;
 
-        return (
-          <motion.div
-            key={s}
-            className="flex gap-3"
-            variants={stepperItemVariants}
-          >
-            <div className="flex flex-col items-center">
-              <div
-                className={cn(
-                  'w-3 h-3 rounded-full shrink-0 mt-0.5',
-                  isCompleted && 'bg-primary',
-                  isCurrent &&
-                    'bg-blue-500 ring-2 ring-blue-500 ring-offset-2 ring-offset-background shadow-[0_0_8px_rgba(59,130,246,0.6)]',
-                  !isCompleted && !isCurrent && 'border border-border bg-background'
-                )}
-              />
+          return (
+            <motion.div key={s} className="flex items-center" variants={stepperItemVariants}>
+              <button
+                onClick={() => !isUpdatingStage && onStageChange(s)}
+                disabled={isUpdatingStage}
+                className="flex flex-col items-center gap-1.5 group cursor-pointer disabled:cursor-not-allowed"
+              >
+                <div
+                  className={cn(
+                    'w-3.5 h-3.5 rounded-full transition-all',
+                    isCompleted && 'bg-blue-500',
+                    isCurrent &&
+                      'bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse ring-2 ring-purple-400/50 ring-offset-1 ring-offset-background',
+                    !isCompleted && !isCurrent && 'border border-white/20 group-hover:border-white/40'
+                  )}
+                />
+                <span
+                  className={cn(
+                    'text-[10px] whitespace-nowrap transition-colors',
+                    isCurrent
+                      ? 'text-purple-300 font-semibold'
+                      : isCompleted
+                      ? 'text-blue-400/70'
+                      : 'text-muted-foreground',
+                    !isCompleted && !isCurrent && 'group-hover:text-foreground/60'
+                  )}
+                >
+                  {DEAL_STAGE_LABELS[s].replace(' ✅', '').replace(' ❌', '')}
+                </span>
+              </button>
               {!isLast && (
                 <div
                   className={cn(
-                    'w-0.5 flex-1 my-1 min-h-[12px]',
-                    isCompleted ? 'bg-primary/40' : 'bg-border'
+                    'h-px w-6 mx-1 mt-[-18px]',
+                    idx < currentStageIndex ? 'bg-blue-500/50' : 'bg-white/10'
                   )}
                 />
               )}
-            </div>
-            <div
-              className={cn(
-                'pb-2 text-xs',
-                isCurrent
-                  ? 'text-primary font-semibold'
-                  : isCompleted
-                  ? 'text-foreground/60'
-                  : 'text-muted-foreground'
-              )}
-            >
-              {DEAL_STAGE_LABELS[s]}
-              {isCurrent && (
-                <p className="text-xs text-muted-foreground font-normal mt-0.5">
-                  {daysInStage === 0 ? "Aujourd'hui" : `${daysInStage} j dans cette étape`}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        );
-      })}
-
-      {/* Perdu node */}
-      <motion.div
-        className="flex gap-3 mt-1"
-        variants={stepperItemVariants}
-      >
-        <div
-          className={cn(
-            'w-3 h-3 rounded-full shrink-0 mt-0.5 border',
-            stage === 'perdu'
-              ? 'bg-red-500/30 border-red-500'
-              : 'bg-background border-border'
-          )}
-        />
-        <div
-          className={cn(
-            'text-xs',
-            stage === 'perdu' ? 'text-red-400 font-semibold' : 'text-muted-foreground'
-          )}
-        >
-          {DEAL_STAGE_LABELS['perdu']}
-          {stage === 'perdu' && (
-            <p className="text-xs text-muted-foreground font-normal mt-0.5">
-              {daysInStage === 0 ? "Aujourd'hui" : `${daysInStage} j dans cette étape`}
-            </p>
-          )}
-        </div>
-      </motion.div>
+            </motion.div>
+          );
+        })}
+      </div>
     </motion.div>
   );
 }
@@ -1367,205 +1418,387 @@ export default function DealDetail() {
       className="space-y-6"
       initial="initial"
       animate="animate"
-      variants={pageVariants}
+      variants={sectionContainerVariants}
       transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       {/* Hero section */}
-      <HeroSection
-        deal={deal}
-        onEdit={() => setIsEditDialogOpen(true)}
-        onNavigateBack={() => navigate('/deals')}
-        onStageChange={(newStage) => stageUpdateMutation.mutate(newStage)}
-        isUpdatingStage={stageUpdateMutation.isPending}
-      />
+      <motion.div variants={sectionItemVariants}>
+        <HeroSection
+          deal={deal}
+          onEdit={() => setIsEditDialogOpen(true)}
+          onNavigateBack={() => navigate('/deals')}
+          onStageChange={(newStage) => stageUpdateMutation.mutate(newStage)}
+          isUpdatingStage={stageUpdateMutation.isPending}
+        />
+      </motion.div>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ② Pipeline Stage Tracker */}
+      <motion.div variants={sectionItemVariants}>
+        <HorizontalStageTracker
+          deal={deal}
+          currentStageIndex={currentStageIndex}
+          onStageChange={(newStage) => stageUpdateMutation.mutate(newStage)}
+          isUpdatingStage={stageUpdateMutation.isPending}
+        />
+      </motion.div>
 
-        {/* ── Left column: Overview ── */}
-        <div className="space-y-6">
-          <Card className="border-border bg-card/50">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                Vue d'ensemble
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+      {/* ③ KPI Strip — 5 metric chips */}
+      <motion.div
+        className="flex gap-3 overflow-x-auto pb-1"
+        variants={kpiContainerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={kpiItemVariants} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[140px]">
+          <p className="text-xs text-muted-foreground">Montant</p>
+          <p className="font-mono font-bold text-blue-400">{formatCurrency(deal.amount)}</p>
+        </motion.div>
+        <motion.div variants={kpiItemVariants} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[140px]">
+          <p className="text-xs text-muted-foreground">Commission</p>
+          <p className="font-mono font-bold text-purple-400">{formatCurrency(deal.commission_amount ?? 0)}</p>
+        </motion.div>
+        <motion.div variants={kpiItemVariants} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[140px]">
+          <p className="text-xs text-muted-foreground">Probabilité</p>
+          <div className="flex items-center gap-2">
+            <ProbabilityArc probability={deal.probability ?? 0} />
+            <span className="font-mono font-bold">{deal.probability ?? 0}%</span>
+          </div>
+        </motion.div>
+        <motion.div variants={kpiItemVariants} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[140px]">
+          <p className="text-xs text-muted-foreground">Clôture prévue</p>
+          <p className="font-mono font-bold">
+            {deal.expected_close_date ? formatDate(deal.expected_close_date) : '–'}
+          </p>
+        </motion.div>
+        <motion.div variants={kpiItemVariants} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 min-w-[140px]">
+          <p className="text-xs text-muted-foreground">Jours actif</p>
+          <p className="font-mono font-bold">
+            {Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000)}j
+          </p>
+        </motion.div>
+      </motion.div>
 
-              {/* Deal Health Score */}
-              <DealHealthScore
-                deal={{
-                  updated_at: deal.updated_at,
-                  probability: deal.probability,
-                  expected_close_date: deal.expected_close_date,
-                  stage: deal.stage,
-                }}
-                showLabel
-              />
+      {/* ④ Tabs — 5 sections */}
+      <motion.div variants={sectionItemVariants}>
+        <Tabs defaultValue="resume">
+          <TabsList className="mb-4">
+            <TabsTrigger value="resume">Résumé</TabsTrigger>
+            <TabsTrigger value="activities">
+              Activités
+              {activities && activities.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 text-xs h-5 px-1.5">{activities.length}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="bien">Bien</TabsTrigger>
+            <TabsTrigger value="contact">Contact</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
+          </TabsList>
 
-              <Separator />
-
-              {/* Stage stepper */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-3">Progression</p>
-                <StageStepper deal={deal} currentStageIndex={currentStageIndex} />
-              </div>
-
-              <Separator />
-
-              {/* Key metrics */}
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Probabilité</span>
-                  <span className="font-medium">{deal.probability ?? 0} %</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Taux commission</span>
-                  <span className="font-medium font-mono">{deal.commission_rate ?? 5} %</span>
-                </div>
-                {deal.expected_close_date && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Clôture prévue</span>
-                    <span className="font-medium font-mono text-xs">
-                      {formatShortDate(deal.expected_close_date)}
-                    </span>
-                  </div>
-                )}
-                {deal.actual_close_date && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Clôture réelle</span>
-                    <span className="font-medium font-mono text-xs">
-                      {formatShortDate(deal.actual_close_date)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Créé le</span>
-                  <span className="font-medium font-mono text-xs">
-                    {formatDate(deal.created_at)}
-                  </span>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Notes — inline editable */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Notes</p>
-                <InlineNotes
-                  dealId={deal.id}
-                  notes={deal.notes}
-                  organizationId={organizationId!}
-                />
-              </div>
-
-              <Separator />
-
-              {/* Tags — interactive */}
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
-                <InteractiveTags
-                  dealId={deal.id}
-                  tags={tagsArray}
-                  organizationId={organizationId!}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Linked entities */}
-          <LinkedEntitiesPanel deal={deal} onNavigate={(path) => navigate(path)} />
-
-          {/* Financial breakdown */}
-          <FinancialBreakdown deal={deal} />
-
-          {/* Property preview */}
-          {deal.property_id && organizationId && (
-            <PropertyPreview
-              propertyId={deal.property_id}
-              organizationId={organizationId}
-              onNavigate={(path) => navigate(path)}
-            />
-          )}
-        </div>
-
-        {/* ── Right column: Tabs ── */}
-        <div className="lg:col-span-2">
-          <Tabs defaultValue="activities">
-            <TabsList className="mb-4">
-              <TabsTrigger value="activities">Activités</TabsTrigger>
-              <TabsTrigger value="info">Informations</TabsTrigger>
-            </TabsList>
-
-            {/* Activities tab */}
-            <TabsContent value="activities">
-              <Card className="border-border bg-card/50">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
+          {/* ── Résumé tab ── */}
+          <TabsContent value="resume">
+            <motion.div
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+              variants={sectionContainerVariants}
+              initial="initial"
+              animate="animate"
+            >
+              {/* Left: Deal info fields */}
+              <motion.div variants={sectionItemVariants}>
+                <Card className="border-white/10 bg-white/5 rounded-xl">
+                  <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-primary" />
-                      Activité
+                      <FileText className="w-4 h-4 text-primary" />
+                      Informations
                     </CardTitle>
-                    <Dialog open={isActivityDialogOpen} onOpenChange={handleActivityDialogChange}>
-                      <Button
-                        size="sm"
-                        className="gap-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                        onClick={() => setIsActivityDialogOpen(true)}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Ajouter
-                      </Button>
-                      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 backdrop-blur-xl shadow-2xl border-border rounded-xl">
-                        <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-6 pb-4 border-b border-border">
-                          <DialogHeader>
-                            <DialogTitle className="text-xl font-semibold flex items-center gap-3">
-                              <CalendarIcon className="w-5 h-5 text-purple-400" />
-                              Nouvelle activité
-                            </DialogTitle>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Pour <span className="font-medium text-primary">{deal.name}</span>
-                            </p>
-                          </DialogHeader>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      {[
+                        { label: 'Nom', value: deal.name },
+                        { label: 'Étape', value: DEAL_STAGE_LABELS[stage] },
+                        { label: 'Montant', value: formatCurrency(deal.amount) },
+                        { label: 'Taux commission', value: `${deal.commission_rate ?? 5} %` },
+                        {
+                          label: 'Commission (€)',
+                          value: deal.commission_amount != null && deal.commission_amount > 0
+                            ? formatCurrency(deal.commission_amount)
+                            : '—',
+                        },
+                        { label: 'Probabilité', value: `${deal.probability ?? 0} %` },
+                        { label: 'Contact', value: deal.contacts?.full_name ?? '—' },
+                        { label: 'Bien', value: deal.properties?.title ?? '—' },
+                        { label: 'Assigné à', value: deal.profiles?.full_name ?? '—' },
+                        {
+                          label: 'Clôture prévue',
+                          value: deal.expected_close_date ? formatDate(deal.expected_close_date) : '—',
+                        },
+                        {
+                          label: 'Clôture réelle',
+                          value: deal.actual_close_date ? formatDate(deal.actual_close_date) : '—',
+                        },
+                        { label: 'Créé le', value: formatDate(deal.created_at) },
+                        {
+                          label: 'Mis à jour',
+                          value: deal.updated_at ? formatRelativeTime(deal.updated_at) : '—',
+                        },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex flex-col gap-0.5 p-3 rounded-lg bg-white/5 border border-white/10">
+                          <span className="text-xs text-muted-foreground">{label}</span>
+                          <span className="font-medium">{value}</span>
                         </div>
-                        <Form {...activityForm}>
-                          <form
-                            onSubmit={activityForm.handleSubmit((v) => createActivityMutation.mutate(v))}
-                            className="p-6 space-y-6"
-                          >
-                            {/* Détails */}
-                            <div className="border-l-2 border-purple-500/50 pl-4 bg-purple-500/5 rounded-r-xl py-4 pr-4 space-y-4">
-                              <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
-                                Détails de l'activité
-                              </h3>
+                      ))}
+                    </div>
+
+                    {/* Close date delta */}
+                    {deal.actual_close_date && deal.expected_close_date && (() => {
+                      const delta = Math.floor(
+                        (new Date(deal.actual_close_date).getTime() - new Date(deal.expected_close_date).getTime()) / 86400000
+                      );
+                      return (
+                        <div className="mt-3 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+                          <span className="text-xs text-muted-foreground">Écart clôture: </span>
+                          <span className={cn(
+                            'text-xs font-semibold',
+                            delta > 0 ? 'text-red-400' : 'text-blue-400'
+                          )}>
+                            {delta > 0
+                              ? `Clôturé ${delta}j en retard`
+                              : `Clôturé ${Math.abs(delta)}j en avance`}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Tags */}
+                    {tagsArray.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {tagsArray.map((tag) => (
+                          <Badge key={tag} className="text-xs bg-blue-500/20 text-blue-300 border-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              {/* Right: Agent card + Financial + Tags editor */}
+              <motion.div className="space-y-6" variants={sectionItemVariants}>
+                {/* Assigned agent card */}
+                {deal.profiles?.full_name && (
+                  <Card className="border-white/10 bg-white/5 rounded-xl">
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div
+                        className={cn(
+                          'w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold text-white shrink-0 bg-gradient-to-br from-blue-500 to-purple-600',
+                        )}
+                      >
+                        {deal.profiles.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Agent responsable</p>
+                        <p className="text-sm font-semibold">{deal.profiles.full_name}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Financial breakdown */}
+                <FinancialBreakdown deal={deal} />
+
+                {/* Interactive tags */}
+                <Card className="border-white/10 bg-white/5 rounded-xl">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-2">Tags</p>
+                    <InteractiveTags
+                      dealId={deal.id}
+                      tags={tagsArray}
+                      organizationId={organizationId!}
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Timestamps */}
+                <div className="flex justify-between text-xs text-muted-foreground px-1">
+                  <span>Créé {formatShortDate(deal.created_at)}</span>
+                  <span>Modifié {formatRelativeTime(deal.updated_at)}</span>
+                </div>
+              </motion.div>
+            </motion.div>
+          </TabsContent>
+
+          {/* ── Activités tab ── */}
+          <TabsContent value="activities">
+            <Card className="border-white/10 bg-white/5 rounded-xl">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    Activité
+                  </CardTitle>
+                  <Dialog open={isActivityDialogOpen} onOpenChange={handleActivityDialogChange}>
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                      onClick={() => setIsActivityDialogOpen(true)}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ajouter
+                    </Button>
+                    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 backdrop-blur-xl shadow-2xl border-border rounded-xl">
+                      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-6 pb-4 border-b border-border">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-semibold flex items-center gap-3">
+                            <CalendarIcon className="w-5 h-5 text-purple-400" />
+                            Nouvelle activité
+                          </DialogTitle>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Pour <span className="font-medium text-primary">{deal.name}</span>
+                          </p>
+                        </DialogHeader>
+                      </div>
+                      <Form {...activityForm}>
+                        <form
+                          onSubmit={activityForm.handleSubmit((v) => createActivityMutation.mutate(v))}
+                          className="p-6 space-y-6"
+                        >
+                          {/* Détails */}
+                          <div className="border-l-2 border-purple-500/50 pl-4 bg-purple-500/5 rounded-r-xl py-4 pr-4 space-y-4">
+                            <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+                              Détails de l'activité
+                            </h3>
+                            <FormField
+                              control={activityForm.control}
+                              name="name"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                    <Edit3 className="w-4 h-4 text-purple-400" />
+                                    Nom <span className="text-purple-400">*</span>
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      placeholder="Ex: Appel de suivi"
+                                      className="bg-background/50 border-border focus:border-purple-500"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={activityForm.control}
+                              name="type"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-sm font-medium">
+                                    Type <span className="text-purple-400">*</span>
+                                  </FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className="bg-background/50 border-border">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {ACTIVITY_TYPES.map((type) => {
+                                        const { icon: TypeIcon, dotColor } = getActivityTypeIcon(type);
+                                        return (
+                                          <SelectItem key={type} value={type}>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                              <TypeIcon className="w-4 h-4 text-muted-foreground" />
+                                              <span>
+                                                {ACTIVITY_TYPE_LABELS[type as keyof typeof ACTIVITY_TYPE_LABELS] || type}
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <div className="grid grid-cols-2 gap-4">
                               <FormField
                                 control={activityForm.control}
-                                name="name"
+                                name="date"
                                 render={({ field }) => (
-                                  <FormItem>
+                                  <FormItem className="flex flex-col">
                                     <FormLabel className="text-sm font-medium flex items-center gap-2">
-                                      <Edit3 className="w-4 h-4 text-purple-400" />
-                                      Nom <span className="text-purple-400">*</span>
+                                      <Clock className="w-4 h-4 text-blue-400" />
+                                      Date <span className="text-purple-400">*</span>
                                     </FormLabel>
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        placeholder="Ex: Appel de suivi"
-                                        className="bg-background/50 border-border focus:border-purple-500"
-                                      />
-                                    </FormControl>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <FormControl>
+                                          <Button
+                                            variant="outline"
+                                            className={cn(
+                                              'pl-3 text-left font-normal bg-background/50 border-border',
+                                              !field.value && 'text-muted-foreground'
+                                            )}
+                                          >
+                                            {field.value
+                                              ? format(field.value, 'd MMM yyyy', { locale: fr })
+                                              : <span>Choisir</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 text-muted-foreground" />
+                                          </Button>
+                                        </FormControl>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={field.value}
+                                          onSelect={field.onChange}
+                                          locale={fr}
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
                                     <FormMessage />
                                   </FormItem>
                                 )}
                               />
                               <FormField
                                 control={activityForm.control}
-                                name="type"
+                                name="time"
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel className="text-sm font-medium">
-                                      Type <span className="text-purple-400">*</span>
+                                    <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-blue-400" />
+                                      Heure <span className="text-purple-400">*</span>
                                     </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        type="time"
+                                        className="bg-background/50 border-border"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Priorité & Statut */}
+                          <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-4">
+                            <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                              Priorité & Statut
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4">
+                              <FormField
+                                control={activityForm.control}
+                                name="priority"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-sm font-medium">Priorité</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
                                       <FormControl>
                                         <SelectTrigger className="bg-background/50 border-border">
@@ -1573,356 +1806,339 @@ export default function DealDetail() {
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {ACTIVITY_TYPES.map((type) => {
-                                          const { icon: TypeIcon, dotColor } = getActivityTypeIcon(type);
-                                          return (
-                                            <SelectItem key={type} value={type}>
-                                              <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-                                                <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                                                <span>
-                                                  {ACTIVITY_TYPE_LABELS[type as keyof typeof ACTIVITY_TYPE_LABELS] || type}
-                                                </span>
-                                              </div>
-                                            </SelectItem>
-                                          );
-                                        })}
+                                        {ACTIVITY_PRIORITIES.map((priority) => (
+                                          <SelectItem key={priority} value={priority}>
+                                            <Badge
+                                              className={cn(
+                                                getPriorityColor(priority),
+                                                (priority === 'haute' || priority === 'urgente') && 'animate-pulse'
+                                              )}
+                                            >
+                                              {ACTIVITY_PRIORITY_LABELS[priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || priority}
+                                            </Badge>
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                     <FormMessage />
                                   </FormItem>
                                 )}
                               />
-                              <div className="grid grid-cols-2 gap-4">
-                                <FormField
-                                  control={activityForm.control}
-                                  name="date"
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-col">
-                                      <FormLabel className="text-sm font-medium flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-blue-400" />
-                                        Date <span className="text-purple-400">*</span>
-                                      </FormLabel>
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <FormControl>
-                                            <Button
-                                              variant="outline"
-                                              className={cn(
-                                                'pl-3 text-left font-normal bg-background/50 border-border',
-                                                !field.value && 'text-muted-foreground'
-                                              )}
-                                            >
-                                              {field.value
-                                                ? format(field.value, 'd MMM yyyy', { locale: fr })
-                                                : <span>Choisir</span>}
-                                              <CalendarIcon className="ml-auto h-4 w-4 text-muted-foreground" />
-                                            </Button>
-                                          </FormControl>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                          <Calendar
-                                            mode="single"
-                                            selected={field.value}
-                                            onSelect={field.onChange}
-                                            locale={fr}
-                                            initialFocus
-                                          />
-                                        </PopoverContent>
-                                      </Popover>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={activityForm.control}
-                                  name="time"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className="text-sm font-medium flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-blue-400" />
-                                        Heure <span className="text-purple-400">*</span>
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          {...field}
-                                          type="time"
-                                          className="bg-background/50 border-border"
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Priorité & Statut */}
-                            <div className="border-l-2 border-blue-500/50 pl-4 bg-blue-500/5 rounded-r-xl py-4 pr-4 space-y-4">
-                              <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
-                                Priorité & Statut
-                              </h3>
-                              <div className="grid grid-cols-2 gap-4">
-                                <FormField
-                                  control={activityForm.control}
-                                  name="priority"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className="text-sm font-medium">Priorité</FormLabel>
-                                      <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                          <SelectTrigger className="bg-background/50 border-border">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                          {ACTIVITY_PRIORITIES.map((priority) => (
-                                            <SelectItem key={priority} value={priority}>
-                                              <Badge
-                                                className={cn(
-                                                  getPriorityColor(priority),
-                                                  (priority === 'haute' || priority === 'urgente') && 'animate-pulse'
-                                                )}
-                                              >
-                                                {ACTIVITY_PRIORITY_LABELS[priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || priority}
-                                              </Badge>
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={activityForm.control}
-                                  name="status"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className="text-sm font-medium">Statut</FormLabel>
-                                      <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                          <SelectTrigger className="bg-background/50 border-border">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                          {ACTIVITY_STATUSES.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                              <Badge className={getStatusColor(status)}>
-                                                {ACTIVITY_STATUS_LABELS[status as keyof typeof ACTIVITY_STATUS_LABELS] || status}
-                                              </Badge>
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="border-l-2 border-border pl-4 bg-muted/20 rounded-r-xl py-4 pr-4 space-y-4">
-                              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                Notes & Description
-                              </h3>
                               <FormField
                                 control={activityForm.control}
-                                name="description"
+                                name="status"
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel className="text-sm font-medium flex items-center gap-2">
-                                      <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                                      Description
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Textarea
-                                        placeholder="Décrivez l'activité..."
-                                        {...field}
-                                        rows={3}
-                                        className="bg-background/50 border-border resize-none"
-                                      />
-                                    </FormControl>
+                                    <FormLabel className="text-sm font-medium">Statut</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger className="bg-background/50 border-border">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {ACTIVITY_STATUSES.map((status) => (
+                                          <SelectItem key={status} value={status}>
+                                            <Badge className={getStatusColor(status)}>
+                                              {ACTIVITY_STATUS_LABELS[status as keyof typeof ACTIVITY_STATUS_LABELS] || status}
+                                            </Badge>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                     <FormMessage />
                                   </FormItem>
                                 )}
                               />
                             </div>
-
-                            <div className="flex justify-end gap-3 pt-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => handleActivityDialogChange(false)}
-                              >
-                                Annuler
-                              </Button>
-                              <Button
-                                type="submit"
-                                disabled={createActivityMutation.isPending}
-                                className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                              >
-                                {createActivityMutation.isPending && (
-                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                )}
-                                Créer l'activité
-                              </Button>
-                            </div>
-                          </form>
-                        </Form>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingActivities ? (
-                    <div className="space-y-4">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="flex gap-4">
-                          <Skeleton className="w-8 h-8 rounded-full" />
-                          <div className="flex-1 space-y-2">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-3 w-full" />
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : activities && activities.length > 0 ? (
-                    <div className="relative">
-                      <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-                      <motion.div
-                        className="space-y-6"
-                        variants={activityContainerVariants}
-                        initial="initial"
-                        animate="animate"
-                      >
-                        {activities.map((activity) => {
-                          const { icon: TypeIcon } = getActivityTypeIcon(activity.type);
-                          return (
-                            <motion.div
-                              key={activity.id}
-                              variants={activityItemVariants}
-                              className="relative flex gap-4 pl-2"
-                            >
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center border border-border bg-muted/50 z-10 shrink-0">
-                                <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                              <div className="flex-1 pb-6">
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <span className="font-medium text-sm">{activity.name}</span>
-                                  <Badge variant="outline" className="text-xs">
-                                    {ACTIVITY_TYPE_LABELS[activity.type as keyof typeof ACTIVITY_TYPE_LABELS] || activity.type}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground font-mono">
-                                    {activity.date ? formatRelativeTime(activity.date) : ''}
-                                  </span>
-                                </div>
-                                {activity.description && (
-                                  <p className="text-sm text-muted-foreground mb-1">
-                                    {activity.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {activity.priority && (
-                                    <Badge className={cn('text-xs', getPriorityColor(activity.priority))}>
-                                      {ACTIVITY_PRIORITY_LABELS[activity.priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || activity.priority}
-                                    </Badge>
-                                  )}
-                                  {activity.status && (
-                                    <Badge className={cn('text-xs', getStatusColor(activity.status))}>
-                                      {ACTIVITY_STATUS_LABELS[activity.status as keyof typeof ACTIVITY_STATUS_LABELS] || activity.status}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </motion.div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Clock className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">Aucune activité enregistrée</p>
-                      <p className="text-xs mt-1">Ajoutez une activité pour commencer le suivi</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
 
-            {/* Informations tab */}
-            <TabsContent value="info">
-              <Card className="border-border bg-card/50">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary" />
-                    Informations complètes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    {[
-                      { label: 'Nom', value: deal.name },
-                      { label: 'Étape', value: DEAL_STAGE_LABELS[stage] },
-                      { label: 'Montant', value: formatCurrency(deal.amount) },
-                      { label: 'Taux commission', value: `${deal.commission_rate ?? 5} %` },
-                      {
-                        label: 'Commission (€)',
-                        value: deal.commission_amount != null && deal.commission_amount > 0
-                          ? formatCurrency(deal.commission_amount)
-                          : '—',
-                      },
-                      { label: 'Probabilité', value: `${deal.probability ?? 0} %` },
-                      { label: 'Contact', value: deal.contacts?.full_name ?? '—' },
-                      { label: 'Bien', value: deal.properties?.title ?? '—' },
-                      { label: 'Assigné à', value: deal.profiles?.full_name ?? '—' },
-                      {
-                        label: 'Clôture prévue',
-                        value: deal.expected_close_date ? formatDate(deal.expected_close_date) : '—',
-                      },
-                      {
-                        label: 'Clôture réelle',
-                        value: deal.actual_close_date ? formatDate(deal.actual_close_date) : '—',
-                      },
-                      { label: 'Créé le', value: formatDate(deal.created_at) },
-                      {
-                        label: 'Mis à jour',
-                        value: deal.updated_at ? formatRelativeTime(deal.updated_at) : '—',
-                      },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="flex flex-col gap-0.5 p-3 rounded-lg bg-muted/20">
-                        <span className="text-xs text-muted-foreground">{label}</span>
-                        <span className="font-medium">{value}</span>
+                          {/* Description */}
+                          <div className="border-l-2 border-border pl-4 bg-muted/20 rounded-r-xl py-4 pr-4 space-y-4">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              Notes & Description
+                            </h3>
+                            <FormField
+                              control={activityForm.control}
+                              name="description"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-sm font-medium flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                                    Description
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      placeholder="Décrivez l'activité..."
+                                      {...field}
+                                      rows={3}
+                                      className="bg-background/50 border-border resize-none"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className="flex justify-end gap-3 pt-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => handleActivityDialogChange(false)}
+                            >
+                              Annuler
+                            </Button>
+                            <Button
+                              type="submit"
+                              disabled={createActivityMutation.isPending}
+                              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                            >
+                              {createActivityMutation.isPending && (
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              )}
+                              Créer l'activité
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingActivities ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex gap-4">
+                        <Skeleton className="w-8 h-8 rounded-full" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-3 w-full" />
+                        </div>
                       </div>
                     ))}
-                    {deal.notes && (
-                      <div className="flex flex-col gap-0.5 p-3 rounded-lg bg-muted/20 sm:col-span-2">
-                        <span className="text-xs text-muted-foreground">Notes</span>
-                        <span className="font-medium whitespace-pre-wrap">{deal.notes}</span>
-                      </div>
-                    )}
-                    {tagsArray.length > 0 && (
-                      <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-muted/20 sm:col-span-2">
-                        <span className="text-xs text-muted-foreground">Tags</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {tagsArray.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
+                ) : activities && activities.length > 0 ? (
+                  <motion.div
+                    className="space-y-3"
+                    variants={activityContainerVariants}
+                    initial="initial"
+                    animate="animate"
+                  >
+                    {activities.map((activity) => {
+                      const { icon: TypeIcon } = getActivityTypeIcon(activity.type);
+                      return (
+                        <motion.div
+                          key={activity.id}
+                          variants={activityItemVariants}
+                          className={cn(
+                            'flex gap-4 p-3 rounded-xl bg-white/5 border border-white/10 border-l-2',
+                            getActivityBorderColor(activity.type)
+                          )}
+                        >
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center border border-white/10 bg-white/5 shrink-0">
+                            <TypeIcon className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-medium text-sm">{activity.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {ACTIVITY_TYPE_LABELS[activity.type as keyof typeof ACTIVITY_TYPE_LABELS] || activity.type}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {activity.date ? formatRelativeTime(activity.date) : ''}
+                              </span>
+                            </div>
+                            {activity.description && (
+                              <p className="text-sm text-muted-foreground mb-1">
+                                {activity.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {activity.priority && (
+                                <Badge className={cn('text-xs', getPriorityColor(activity.priority))}>
+                                  {ACTIVITY_PRIORITY_LABELS[activity.priority as keyof typeof ACTIVITY_PRIORITY_LABELS] || activity.priority}
+                                </Badge>
+                              )}
+                              {activity.status && (
+                                <Badge className={cn('text-xs', getStatusColor(activity.status))}>
+                                  {ACTIVITY_STATUS_LABELS[activity.status as keyof typeof ACTIVITY_STATUS_LABELS] || activity.status}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Aucune activité enregistrée</p>
+                    <p className="text-xs mt-1">Ajoutez une activité pour commencer le suivi</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Bien tab ── */}
+          <TabsContent value="bien">
+            {deal.property_id && organizationId ? (
+              <PropertyPreview
+                propertyId={deal.property_id}
+                organizationId={organizationId}
+                onNavigate={(path) => navigate(path)}
+              />
+            ) : (
+              <Card className="border-white/10 bg-white/5 rounded-xl">
+                <CardContent className="p-8 text-center">
+                  <Home className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground">Aucun bien associé à cette opportunité</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 gap-2 bg-white/5 border-white/10"
+                    onClick={() => setIsEditDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Associer un bien
+                  </Button>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
+            )}
+          </TabsContent>
+
+          {/* ── Contact tab ── */}
+          <TabsContent value="contact">
+            {deal.contacts ? (
+              <Card className="border-white/10 bg-white/5 rounded-xl">
+                <CardContent className="p-6">
+                  <motion.div
+                    className="space-y-6"
+                    variants={sectionContainerVariants}
+                    initial="initial"
+                    animate="animate"
+                  >
+                    {/* Large avatar + name */}
+                    <motion.div variants={sectionItemVariants} className="flex items-center gap-4">
+                      <div
+                        className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white shrink-0 bg-gradient-to-br from-blue-500 to-purple-600"
+                      >
+                        {deal.contacts.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">{deal.contacts.full_name}</h3>
+                        {deal.contacts.pipeline_stage && (
+                          <Badge className="text-xs bg-blue-500/20 text-blue-300 border-0 mt-1">
+                            {PIPELINE_STAGE_LABELS[deal.contacts.pipeline_stage as PipelineStage] ??
+                              deal.contacts.pipeline_stage}
+                          </Badge>
+                        )}
+                      </div>
+                    </motion.div>
+
+                    {/* Contact fields grid */}
+                    <motion.div variants={sectionItemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                        <p className="text-xs text-muted-foreground">Pipeline</p>
+                        <p className="text-sm font-medium">
+                          {deal.contacts.pipeline_stage
+                            ? (PIPELINE_STAGE_LABELS[deal.contacts.pipeline_stage as PipelineStage] ?? deal.contacts.pipeline_stage)
+                            : '—'}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                        <p className="text-xs text-muted-foreground">Score d'urgence</p>
+                        {deal.contacts.urgency_score != null ? (
+                          <div className="mt-1.5 space-y-1">
+                            <span className="text-sm font-mono font-bold">{deal.contacts.urgency_score}/10</span>
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div
+                                className={cn(
+                                  'h-full rounded-full transition-all duration-500',
+                                  deal.contacts.urgency_score <= 3 && 'bg-blue-400',
+                                  deal.contacts.urgency_score > 3 && deal.contacts.urgency_score <= 6 && 'bg-purple-400',
+                                  deal.contacts.urgency_score > 6 && 'bg-red-400',
+                                )}
+                                style={{ width: `${(deal.contacts.urgency_score / 10) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-medium">—</p>
+                        )}
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={sectionItemVariants}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 bg-white/5 border-white/10"
+                        onClick={() => navigate(`/contacts/${deal.contacts!.id}`)}
+                      >
+                        <User className="w-4 h-4" />
+                        Voir la fiche contact
+                        <ChevronRight className="w-3 h-3" />
+                      </Button>
+                    </motion.div>
+                  </motion.div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-white/10 bg-white/5 rounded-xl">
+                <CardContent className="p-8 text-center">
+                  <User className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-50" />
+                  <p className="text-sm text-muted-foreground">Aucun contact associé</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 gap-2 bg-white/5 border-white/10"
+                    onClick={() => setIsEditDialogOpen(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Associer un contact
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* ── Notes tab ── */}
+          <TabsContent value="notes">
+            <Card className="border-white/10 bg-white/5 rounded-xl">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  Notes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {deal.notes || true ? (
+                  <div className="space-y-2">
+                    <InlineNotes
+                      dealId={deal.id}
+                      notes={deal.notes}
+                      organizationId={organizationId!}
+                    />
+                    <p className="text-xs text-muted-foreground text-right">
+                      {(deal.notes ?? '').length} caractères
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Aucune note</p>
+                    <p className="text-xs mt-1">Cliquez pour ajouter des notes</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
 
       {/* ── Edit Sheet ── */}
       <Sheet open={isEditDialogOpen} onOpenChange={handleEditDialogChange}>
