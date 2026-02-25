@@ -27,7 +27,7 @@ import {
   Plus, Search, Phone, Mail, User, Loader2, TrendingUp, Users,
   UserPlus, Home, Globe, LayoutList, LayoutGrid,
   ArrowUpDown, Clock, Flame, UserX, CalendarClock, ChevronDown,
-  Calendar, ArrowUpRight, RefreshCw
+  Calendar, ArrowUpRight, RefreshCw, Upload,
 } from 'lucide-react';
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -48,6 +48,7 @@ import { PIPELINE_STAGES, PIPELINE_STAGE_LABELS, CONTACT_ROLES, CONTACT_ROLE_LAB
 import { formatRelativeTime } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
+import { ContactImportDialog } from '@/components/contacts/ContactImportDialog';
 
 type Contact = Tables<'contacts'>;
 
@@ -525,6 +526,7 @@ export default function Contacts() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [activityContactId, setActivityContactId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -830,7 +832,16 @@ export default function Contacts() {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-white/20 hover:bg-white/10"
+            onClick={() => setIsImportDialogOpen(true)}
+          >
+            <Upload className="w-4 h-4 mr-2" />Importer
+          </Button>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02]">
               <Plus className="w-4 h-4 mr-2" />Nouveau contact
@@ -989,7 +1000,10 @@ export default function Contacts() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      <ContactImportDialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen} />
 
       {/* ==================== KPI CARDS ==================== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
