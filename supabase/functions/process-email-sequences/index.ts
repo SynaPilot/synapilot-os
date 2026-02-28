@@ -7,6 +7,35 @@ interface SequenceStep {
   body: string;
 }
 
+interface Contact {
+  full_name: string;
+  email: string | null;
+  phone?: string | null;
+  city?: string | null;
+  profiles?: { full_name: string | null } | null;
+}
+
+function replaceVars(text: string, contact: Contact, agentFullName?: string): string {
+  const firstName = contact.full_name?.split(' ')[0] ?? 'vous';
+  const agentFull = agentFullName ?? '';
+  const agentFirst = agentFull.split(' ')[0] ?? '';
+  const agentLast = agentFull.split(' ').slice(1).join(' ') ?? '';
+  return text
+    .replace(/{contact_prenom}/g, firstName)
+    .replace(/{contact_nom}/g, contact.full_name ?? '')
+    .replace(/{contact_civilite}/g, '')
+    .replace(/{contact_email}/g, contact.email ?? '')
+    .replace(/{contact_telephone}/g, contact.phone ?? '')
+    .replace(/{contact_ville}/g, contact.city ?? '')
+    .replace(/{agent_nom_complet}/g, agentFull)
+    .replace(/{agent_prenom}/g, agentFirst)
+    .replace(/{agent_nom}/g, agentLast);
+}
+
+function toHtml(text: string): string {
+  return text.replace(/\n/g, '<br>');
+}
+
 serve(async (_req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -40,7 +69,13 @@ serve(async (_req) => {
         ),
         contacts!inner(
           full_name,
-          email
+          email,
+          phone,
+          city,
+          assigned_to,
+          profiles!contacts_assigned_to_fkey(
+            full_name
+          )
         )
       `)
       .eq('status', 'active')
@@ -69,7 +104,8 @@ serve(async (_req) => {
     for (const enrollment of enrollments) {
       try {
         const sequence = enrollment.email_sequences as unknown as { name: string; steps: SequenceStep[]; is_active: boolean };
-        const contact = enrollment.contacts as unknown as { full_name: string; email: string | null };
+        const contact = enrollment.contacts as unknown as Contact;
+        const agentFullName = (contact as any).profiles?.full_name ?? 'Votre conseiller';
 
         // Skip paused sequences
         if (!sequence.is_active) {
@@ -108,8 +144,8 @@ serve(async (_req) => {
           body: JSON.stringify({
             from: 'SynaPilot <noreply@synapilot.fr>',
             to: contact.email,
-            subject: step.subject,
-            html: step.body.replace(/\n/g, '<br>'),
+            subject: replaceVars(step.subject, contact, agentFullName),
+            html: toHtml(replaceVars(step.body, contact, agentFullName)),
           }),
         });
 
