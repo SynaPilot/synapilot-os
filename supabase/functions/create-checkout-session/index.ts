@@ -1,147 +1,198 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Stripe from "https://esm.sh/stripe@14.14.0?target=deno";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import Stripe from "npm:stripe@17";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+function getRequiredEnv(key: string): string {
+  const value = Deno.env.get(key);
+  if (!value) throw new Error(`Missing required environment variable: ${key}`);
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Edge Function
+// ---------------------------------------------------------------------------
+
+Deno.serve(async (req: Request) => {
+  // ── CORS preflight ──────────────────────────────────────────────────────
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Méthode non autorisée" }, 405);
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')!;
-    const stripePriceId = Deno.env.get('STRIPE_PRICE_PILOT')!;
+    // ── Env vars ───────────────────────────────────────────────────────────
+    const supabaseUrl        = getRequiredEnv("SUPABASE_URL");
+    const serviceRoleKey     = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey    = getRequiredEnv("SUPABASE_ANON_KEY");
+    const stripeSecretKey    = getRequiredEnv("STRIPE_SECRET_KEY");
+    const stripePriceId      = getRequiredEnv("STRIPE_PRICE_ID");
+    const appUrl             = getRequiredEnv("APP_URL");
 
-    // ========== JWT AUTHENTICATION ==========
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Non autorise - Token manquant' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ── Auth: verify JWT ───────────────────────────────────────────────────
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Non autorisé — token manquant" }, 401);
     }
 
-    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+    // Use the anon client scoped to the caller's JWT so Supabase validates it.
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: userData, error: userError } = await userSupabase.auth.getUser(token);
-
-    if (userError || !userData?.user) {
-      return new Response(
-        JSON.stringify({ error: 'Non autorise - Token invalide' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const { data: authData, error: authError } = await userClient.auth.getUser();
+    if (authError || !authData.user) {
+      return jsonResponse({ error: "Non autorisé — token invalide" }, 401);
     }
 
-    const callerUid = userData.user.id;
+    const callerUid    = authData.user.id;
+    const callerEmail  = authData.user.email ?? "";
 
-    // ========== PARSE BODY ==========
-    const { organization_id } = await req.json();
+    // ── Parse request body ─────────────────────────────────────────────────
+    let body: { organization_id?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Corps de requête JSON invalide" }, 400);
+    }
 
+    const { organization_id } = body;
     if (!organization_id) {
-      return new Response(
-        JSON.stringify({ error: 'Champ requis : organization_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: "Champ requis : organization_id" }, 400);
     }
 
-    // ========== ADMIN CHECK ==========
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+    // ── Service-role client (bypasses RLS for all DB writes) ───────────────
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: adminCheck, error: adminError } = await adminSupabase
-      .from('user_roles')
-      .select('id')
-      .eq('user_id', callerUid)
-      .eq('organization_id', organization_id)
-      .eq('role', 'admin')
+    // ── Authorization: caller must belong to the requested org ─────────────
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", callerUid)
+      .single();
+
+    if (profileError || !profile) {
+      return jsonResponse({ error: "Profil utilisateur introuvable" }, 404);
+    }
+
+    if (profile.organization_id !== organization_id) {
+      return jsonResponse({ error: "Accès refusé — organisation incorrecte" }, 403);
+    }
+
+    // ── Authorization: caller must be Admin ────────────────────────────────
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerUid)
       .maybeSingle();
 
-    if (adminError || !adminCheck) {
-      return new Response(
-        JSON.stringify({ error: 'Acces refuse - Vous devez etre administrateur' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    if (!roleRow || roleRow.role !== "Admin") {
+      return jsonResponse(
+        { error: "Accès refusé — rôle Administrateur requis" },
+        403,
       );
     }
 
-    // ========== GET OR CREATE STRIPE CUSTOMER ==========
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
-
-    const { data: subscription, error: subError } = await adminSupabase
-      .from('subscriptions')
-      .select('*')
-      .eq('organization_id', organization_id)
+    // ── Fetch subscription record ──────────────────────────────────────────
+    // A subscription row is auto-created by the DB trigger on org creation.
+    const { data: subscription, error: subError } = await admin
+      .from("subscriptions")
+      .select("stripe_customer_id, seats")
+      .eq("organization_id", organization_id)
       .single();
 
     if (subError || !subscription) {
-      return new Response(
-        JSON.stringify({ error: 'Abonnement introuvable pour cette organisation' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      return jsonResponse(
+        { error: "Abonnement introuvable pour cette organisation" },
+        404,
       );
     }
 
-    let stripeCustomerId = subscription.stripe_customer_id;
+    // ── Get or create Stripe customer ──────────────────────────────────────
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" });
+
+    let stripeCustomerId = subscription.stripe_customer_id as string | null;
 
     if (!stripeCustomerId) {
-      // Fetch org name for Stripe customer
-      const { data: org } = await adminSupabase
-        .from('organizations')
-        .select('name')
-        .eq('id', organization_id)
+      const { data: org } = await admin
+        .from("organizations")
+        .select("name")
+        .eq("id", organization_id)
         .single();
 
       const customer = await stripe.customers.create({
-        email: userData.user.email,
-        name: org?.name || undefined,
+        email: callerEmail,
+        name: org?.name ?? undefined,
         metadata: { organization_id },
       });
 
       stripeCustomerId = customer.id;
 
-      await adminSupabase
-        .from('subscriptions')
+      const { error: updateError } = await admin
+        .from("subscriptions")
         .update({ stripe_customer_id: stripeCustomerId })
-        .eq('organization_id', organization_id);
+        .eq("organization_id", organization_id);
+
+      if (updateError) {
+        console.error("Failed to persist stripe_customer_id:", updateError);
+        // Non-fatal: continue — Stripe will still work
+      }
     }
 
-    // ========== CREATE CHECKOUT SESSION ==========
-    const origin = req.headers.get('origin') || 'http://localhost:5173';
+    // ── Create Checkout Session ────────────────────────────────────────────
+    const seats = (subscription.seats as number) ?? 1;
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+      mode: "subscription",
       customer: stripeCustomerId,
       line_items: [
         {
           price: stripePriceId,
-          quantity: subscription.seats || 1,
+          quantity: seats,
         },
       ],
-      success_url: `${origin}/settings?billing=success`,
-      cancel_url: `${origin}/settings?billing=canceled`,
+      // Allow seats adjustment directly in checkout (optional but UX-friendly)
+      subscription_data: {
+        metadata: { organization_id },
+      },
+      metadata: { organization_id },
+      allow_promotion_codes: true,
+      billing_address_collection: "required",
+      success_url: `${appUrl}/billing?success=true`,
+      cancel_url: `${appUrl}/billing?canceled=true`,
+      // client_reference_id kept as fallback for webhook resolution
       client_reference_id: organization_id,
     });
 
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ url: session.url });
 
-  } catch (error) {
-    console.error('Edge Function Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Erreur serveur',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue";
+    console.error("[create-checkout-session] Error:", message);
+    return jsonResponse({ error: "Erreur serveur", detail: message }, 500);
   }
 });
