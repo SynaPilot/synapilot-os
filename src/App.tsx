@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { CommandMenu } from "@/components/CommandMenu";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
@@ -94,53 +95,67 @@ function RootRedirect() {
   return <Navigate to={user ? "/dashboard" : "/login"} replace />;
 }
 
+/**
+ * Composes SubscriptionGate + ProtectedRoute for authenticated routes.
+ * SubscriptionGate internally exempts /billing so the gate never blocks
+ * the user from reaching the page where they can reactivate.
+ */
+function GatedRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <SubscriptionGate>
+      <ProtectedRoute>{children}</ProtectedRoute>
+    </SubscriptionGate>
+  );
+}
+
 function AppRoutes() {
   return (
     <Routes>
       {/* Root redirect based on auth state */}
       <Route path="/" element={<RootRedirect />} />
-      
-      {/* Public routes */}
+
+      {/* Public routes — no gate */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      
-      {/* Protected routes - all wrapped with DashboardLayout via ProtectedRoute */}
+
+      {/* Protected + subscription-gated routes */}
       <Route path="/dashboard" element={
-        <ProtectedRoute><Dashboard /></ProtectedRoute>
+        <GatedRoute><Dashboard /></GatedRoute>
       } />
       <Route path="/contacts" element={
-        <ProtectedRoute><Contacts /></ProtectedRoute>
+        <GatedRoute><Contacts /></GatedRoute>
       } />
       <Route path="/contacts/:id" element={
-        <ProtectedRoute><ContactDetail /></ProtectedRoute>
+        <GatedRoute><ContactDetail /></GatedRoute>
       } />
       {/* Keep /leads as alias for backwards compatibility */}
       <Route path="/leads" element={
-        <ProtectedRoute><Contacts /></ProtectedRoute>
+        <GatedRoute><Contacts /></GatedRoute>
       } />
       <Route path="/properties" element={
-        <ProtectedRoute><Properties /></ProtectedRoute>
+        <GatedRoute><Properties /></GatedRoute>
       } />
       <Route path="/deals" element={
-        <ProtectedRoute><Deals /></ProtectedRoute>
+        <GatedRoute><Deals /></GatedRoute>
       } />
       <Route path="/deals/:id" element={
-        <ProtectedRoute><DealDetail /></ProtectedRoute>
+        <GatedRoute><DealDetail /></GatedRoute>
       } />
       <Route path="/activities" element={
-        <ProtectedRoute><Activities /></ProtectedRoute>
+        <GatedRoute><Activities /></GatedRoute>
       } />
       <Route path="/stats" element={
-        <ProtectedRoute><Stats /></ProtectedRoute>
+        <GatedRoute><Stats /></GatedRoute>
       } />
       <Route path="/settings" element={
-        <ProtectedRoute><Settings /></ProtectedRoute>
+        <GatedRoute><Settings /></GatedRoute>
       } />
       <Route path="/emails-ia" element={
-        <ProtectedRoute><EmailsIA /></ProtectedRoute>
+        <GatedRoute><EmailsIA /></GatedRoute>
       } />
+      {/* /billing is always accessible — SubscriptionGate exempts it internally */}
       <Route path="/billing" element={
-        <ProtectedRoute><Billing /></ProtectedRoute>
+        <GatedRoute><Billing /></GatedRoute>
       } />
 
       {/* Catch-all */}
