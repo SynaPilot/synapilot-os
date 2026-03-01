@@ -4,18 +4,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // n8n is called exclusively via this Edge Function.
 // The N8N_WEBHOOK_BASE_URL secret is set in Supabase Dashboard → Settings → Edge Functions → Secrets.
 // Frontend code must never reference N8N_WEBHOOK_BASE_URL or call n8n directly.
+//
+// This function accepts two authentication paths:
+//   1. User JWT (from React frontend) — looks up organization_id via profiles table.
+//   2. Service role key (from DB triggers via pg_net) — uses organization_id from payload directly.
 
 interface AutomationSettings {
-  qualify_lead?: boolean;
-  send_sms_reminder?: boolean;
-  notify_agent?: boolean;
-  sync_property?: boolean;
+  new_contact?: boolean;
+  visit_completed?: boolean;
+  daily_pipeline_check?: boolean;
+  new_mandate?: boolean;
+  cold_leads_reactivation?: boolean;
   [key: string]: boolean | undefined;
 }
 
 interface OrgSettings {
   automations?: AutomationSettings;
-  communications?: { sms_enabled?: boolean };
+  communications?: {
+    sms_enabled?: boolean;
+    whatsapp_enabled?: boolean;
+  };
+  onboarding?: {
+    completed?: boolean;
+    n8n_provisioned?: boolean;
+    smtp_configured?: boolean;
+  };
 }
 
 const corsHeaders = {
@@ -37,7 +50,7 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Verify JWT
+    // 1. Verify Authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ success: false, error: "Non autorisé" }, 401);
@@ -47,18 +60,7 @@ serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: authError } = await userClient.auth.getUser(token);
-
-    if (authError || !userData?.user) {
-      return json({ success: false, error: "Token invalide" }, 401);
-    }
-
-    const userId = userData.user.id;
 
     // 2. Parse request body
     const { action, payload = {} }: { action: string; payload: Record<string, unknown> } =
@@ -72,26 +74,52 @@ serve(async (req) => {
     const webhookUrl = Deno.env.get("N8N_WEBHOOK_BASE_URL");
 
     if (!webhookUrl) {
-      // Secret not configured — return gracefully, do not throw
       console.warn("N8N_WEBHOOK_BASE_URL not configured — automation skipped:", action);
       return json({ success: false, reason: "not_configured" });
     }
 
-    // 4. Fetch organization_id via service role (not trust user-supplied value)
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: profile, error: profileError } = await adminClient
-      .from("profiles")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .single();
+    // 4. Resolve organization_id — two paths depending on caller
+    let organizationId: string;
 
-    if (profileError || !profile) {
-      console.error("Profile lookup failed:", profileError?.message);
-      return json({ success: false, error: "Profil introuvable" }, 403);
+    const isServiceCall = token === serviceRoleKey;
+
+    if (isServiceCall) {
+      // Internal call from DB trigger via pg_net — trust payload.organization_id
+      const payloadOrgId = payload.organization_id as string | undefined;
+      if (!payloadOrgId) {
+        return json({ success: false, error: "organization_id requis pour appel interne" }, 400);
+      }
+      organizationId = payloadOrgId;
+    } else {
+      // Normal user JWT path — resolve org via profiles table
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: userData, error: authError } = await userClient.auth.getUser(token);
+
+      if (authError || !userData?.user) {
+        return json({ success: false, error: "Token invalide" }, 401);
+      }
+
+      const userId = userData.user.id;
+
+      // profiles.id IS the auth user_id (PK references auth.users.id)
+      const { data: profile, error: profileError } = await adminClient
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", userId) // ← FIXED: was .eq("user_id", userId) — column does not exist
+        .single();
+
+      if (profileError || !profile) {
+        console.error("Profile lookup failed:", profileError?.message);
+        return json({ success: false, error: "Profil introuvable" }, 403);
+      }
+
+      organizationId = profile.organization_id;
     }
-
-    const organizationId = profile.organization_id;
 
     // 5. Read organizations.settings.automations[action] — check if enabled
     const { data: org, error: orgError } = await adminClient
