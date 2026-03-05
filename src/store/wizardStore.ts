@@ -14,9 +14,11 @@ interface WizardState {
   currentStep: 0 | 1 | 2 | 3;
   stepData: StepDataMap;
   isComplete: boolean;
+  isStepValid: boolean;
   nextStep: () => void;
   prevStep: () => void;
   setStepData: <K extends StepKey>(step: K, data: Partial<StepDataMap[K]>) => void;
+  setIsStepValid: (val: boolean) => void;
   markComplete: () => void;
   resetWizard: () => void;
 }
@@ -29,6 +31,7 @@ const initialState = {
     step3: {},
   },
   isComplete: false,
+  isStepValid: false,
 };
 
 export const useWizardStore = create<WizardState>()(
@@ -58,6 +61,8 @@ export const useWizardStore = create<WizardState>()(
           },
         }));
       },
+
+      setIsStepValid: (val: boolean) => set({ isStepValid: val }),
 
       markComplete: () => set({ isComplete: true }),
 

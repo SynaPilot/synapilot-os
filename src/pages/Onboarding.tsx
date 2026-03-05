@@ -1,27 +1,41 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard';
 import { useWizardStore } from '@/store/wizardStore';
 import { WizardLayout } from '@/components/wizard/WizardLayout';
 
-function StepPlaceholder({ name }: { name: string }) {
+const Step1AgencyInfo = lazy(() =>
+  import('../components/wizard/Step1AgencyInfo').then((m) => ({ default: m.Step1AgencyInfo }))
+);
+const Step2EmailConfig = lazy(() =>
+  import('../components/wizard/Step2EmailConfig').then((m) => ({ default: m.Step2EmailConfig }))
+);
+const Step3Notifications = lazy(() =>
+  import('../components/wizard/Step3Notifications').then((m) => ({
+    default: m.Step3Notifications,
+  }))
+);
+
+function Step4Activation() {
   return (
     <div className="flex items-center justify-center h-full min-h-[320px]">
-      <p className="text-zinc-500 text-sm">{name}</p>
+      <p className="text-zinc-500 text-sm">Step4Activation</p>
     </div>
   );
 }
 
-const stepComponents = [
-  <StepPlaceholder key="step1" name="Step1AgencyInfo" />,
-  <StepPlaceholder key="step2" name="Step2EmailConfig" />,
-  <StepPlaceholder key="step3" name="Step3Notifications" />,
-  <StepPlaceholder key="step4" name="Step4Activation" />,
-];
+function StepFallback() {
+  return (
+    <div className="flex items-center justify-center h-full min-h-[320px]">
+      <Loader2 className="w-6 h-6 animate-spin text-violet-500" />
+    </div>
+  );
+}
 
 export default function Onboarding() {
   const { isLoading } = useOnboardingGuard();
   const currentStep = useWizardStore((s) => s.currentStep);
+  const isStepValid = useWizardStore((s) => s.isStepValid);
 
   useEffect(() => {
     document.title = 'Configuration de votre agence — SynaPilot';
@@ -46,9 +60,22 @@ export default function Onboarding() {
     );
   }
 
+  const renderStep = () => {
+    switch (currentStep) {
+      case 0:
+        return <Step1AgencyInfo />;
+      case 1:
+        return <Step2EmailConfig />;
+      case 2:
+        return <Step3Notifications />;
+      case 3:
+        return <Step4Activation />;
+    }
+  };
+
   return (
-    <WizardLayout isStepValid={true}>
-      {stepComponents[currentStep]}
+    <WizardLayout isStepValid={isStepValid}>
+      <Suspense fallback={<StepFallback />}>{renderStep()}</Suspense>
     </WizardLayout>
   );
 }
