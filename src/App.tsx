@@ -42,6 +42,7 @@ const Settings = lazyWithPrefetch(() => import("./pages/Settings"));
 const EmailsIA = lazyWithPrefetch(() => import("./pages/EmailsIA"));
 const Billing = lazyWithPrefetch(() => import("./pages/Billing"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
 
 // Prefetch critical routes after initial load
 if (typeof window !== 'undefined') {
@@ -117,6 +118,7 @@ function AppRoutes() {
       {/* Public routes — no gate */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/onboarding" element={<Onboarding />} />
 
       {/* Protected + subscription-gated routes */}
       <Route path="/dashboard" element={
