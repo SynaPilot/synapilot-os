@@ -15,14 +15,11 @@ const Step3Notifications = lazy(() =>
     default: m.Step3Notifications,
   }))
 );
-
-function Step4Activation() {
-  return (
-    <div className="flex items-center justify-center h-full min-h-[320px]">
-      <p className="text-zinc-500 text-sm">Step4Activation</p>
-    </div>
-  );
-}
+const Step4Activation = lazy(() =>
+  import('../components/wizard/Step4Activation').then((m) => ({
+    default: m.Step4Activation,
+  }))
+);
 
 function StepFallback() {
   return (
