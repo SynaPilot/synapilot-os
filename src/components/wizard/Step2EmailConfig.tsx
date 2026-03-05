@@ -39,6 +39,7 @@ export function Step2EmailConfig({ className }: { className?: string }) {
     watch,
     trigger,
     getValues,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -83,6 +84,14 @@ export function Step2EmailConfig({ className }: { className?: string }) {
     setStepData('step2', { test_passed: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watched.smtp_host, watched.smtp_port, watched.smtp_user, watched.smtp_password]);
+
+  const handleQuickFill = (host: string, port: number) => {
+    setValue('smtp_host', host);
+    setValue('smtp_port', port);
+    setTestPassed(false);
+    setTestStatus('idle');
+    setStepData('step2', { test_passed: false });
+  };
 
   const handleTest = async () => {
     const valid = await trigger();
@@ -130,6 +139,27 @@ export function Step2EmailConfig({ className }: { className?: string }) {
       </div>
 
       <div className="space-y-4">
+        {/* Quick-fill buttons */}
+        <div className="space-y-1.5">
+          <p className="text-zinc-500 text-xs">Remplissage rapide</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickFill('smtp.gmail.com', 587)}
+              className="border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 rounded-md px-3 py-1.5 text-sm transition-colors"
+            >
+              [G] Gmail
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('smtp.office365.com', 587)}
+              className="border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 rounded-md px-3 py-1.5 text-sm transition-colors"
+            >
+              [O] Outlook
+            </button>
+          </div>
+        </div>
+
         {/* smtp_host */}
         <div className="space-y-2">
           <Label className="text-zinc-400 text-sm">Hôte SMTP *</Label>

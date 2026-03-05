@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AgencyData, EmailConfigData, NotificationsData } from '@/types/wizard.types';
 
 type StepKey = 'step1' | 'step2' | 'step3';
@@ -70,6 +70,19 @@ export const useWizardStore = create<WizardState>()(
     }),
     {
       name: 'synapilot-wizard',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        stepData: state.stepData,
+        currentStep: state.currentStep,
+      }),
+      version: 1,
+      migrate: (
+        _state: unknown,
+        _version: number,
+      ): { stepData: StepDataMap; currentStep: 0 | 1 | 2 | 3 } => ({
+        stepData: initialState.stepData,
+        currentStep: 0,
+      }),
     }
   )
 );

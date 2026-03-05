@@ -1,9 +1,53 @@
-import { useEffect, lazy, Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Component, ReactNode, useEffect, lazy, Suspense } from 'react';
+import { Loader2, ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useOnboardingGuard } from '@/hooks/useOnboardingGuard';
 import { useWizardStore } from '@/store/wizardStore';
 import { WizardLayout } from '@/components/wizard/WizardLayout';
 
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-sm w-full flex flex-col items-center gap-4 text-center">
+            <ShieldAlert className="text-red-400" size={40} />
+            <div className="space-y-1">
+              <p className="text-zinc-100 font-semibold">
+                Une erreur inattendue est survenue
+              </p>
+              <p className="text-zinc-400 text-sm">
+                Rechargez la page pour recommencer.
+              </p>
+            </div>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-violet-600 hover:bg-violet-500 text-white"
+            >
+              Recharger
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── Lazy step imports ────────────────────────────────────────────────────────
 const Step1AgencyInfo = lazy(() =>
   import('../components/wizard/Step1AgencyInfo').then((m) => ({ default: m.Step1AgencyInfo }))
 );
@@ -71,8 +115,10 @@ export default function Onboarding() {
   };
 
   return (
-    <WizardLayout isStepValid={isStepValid}>
-      <Suspense fallback={<StepFallback />}>{renderStep()}</Suspense>
-    </WizardLayout>
+    <ErrorBoundary>
+      <WizardLayout isStepValid={isStepValid}>
+        <Suspense fallback={<StepFallback />}>{renderStep()}</Suspense>
+      </WizardLayout>
+    </ErrorBoundary>
   );
 }

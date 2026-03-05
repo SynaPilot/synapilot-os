@@ -124,6 +124,9 @@ export function Step4Activation() {
   // Index of the card currently playing its pulse animation (visual only, not in reducer)
   const [pulsingIndex, setPulsingIndex] = useState<number | null>(null);
 
+  // Screen reader announcement
+  const [announcement, setAnnouncement] = useState('');
+
   const mountedRef = useRef(true);
   const timersRef = useRef<number[]>([]);
   const confettiFiredRef = useRef(false);
@@ -209,6 +212,7 @@ export function Step4Activation() {
         if (!mountedRef.current) return;
         dispatch({ type: 'ITEM_ACTIVATED' });
         setPulsingIndex(i);
+        setAnnouncement(`Workflow ${WORKFLOWS[i].label} activé`);
         // Clear pulse after animation completes (300ms) + margin (100ms)
         const clearId = window.setTimeout(() => {
           if (mountedRef.current) setPulsingIndex(null);
@@ -225,6 +229,15 @@ export function Step4Activation() {
     timersRef.current.push(n8nId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Announce phase transitions to screen readers ───────────────────────────
+  useEffect(() => {
+    if (phase === 'success') {
+      setAnnouncement('Votre agence est opérationnelle. 8 workflows activés.');
+    } else if (phase === 'error') {
+      setAnnouncement('Erreur de connexion. Veuillez réessayer.');
+    }
+  }, [phase]);
 
   // ── Confetti fires once on success ────────────────────────────────────────
   useEffect(() => {
@@ -255,6 +268,11 @@ export function Step4Activation() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="w-full py-8">
+      {/* Accessible live region for screen readers */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+
       <div className="max-w-lg mx-auto space-y-6">
 
         {/* Title — changes on success */}

@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { ImageIcon, X } from 'lucide-react';
+import { ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { useWizardStore } from '@/store/wizardStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,7 +93,15 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
         .upload(path, file, { upsert: true });
 
       if (error) {
-        setUploadError('Erreur upload');
+        const msg = error.message ?? '';
+        const isBucketMissing =
+          msg.toLowerCase().includes('not found') ||
+          msg.toLowerCase().includes('bucket');
+        setUploadError(
+          isBucketMissing
+            ? "Upload indisponible — vous pourrez ajouter votre logo plus tard"
+            : 'Erreur upload'
+        );
         setIsUploading(false);
         return;
       }
@@ -181,7 +190,7 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
               <img
                 src={logoUrl}
                 alt="Logo agence"
-                className="w-12 h-12 object-contain rounded"
+                className="max-h-20 object-contain rounded"
               />
               <span className="text-zinc-300 text-sm flex-1 truncate">Logo chargé</span>
               <button
@@ -190,21 +199,29 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
                   setLogoUrl(null);
                   setStepData('step1', { logo_url: null });
                 }}
-                className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                className="text-red-400 text-xs hover:text-red-300 transition-colors"
               >
-                <X className="w-4 h-4" />
+                Supprimer
               </button>
             </div>
           ) : (
             <div
               onDragOver={(e) => {
+                if (isUploading) return;
                 e.preventDefault();
                 setIsDragging(true);
               }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
+              onDragLeave={() => {
+                if (isUploading) return;
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                if (isUploading) return;
+                onDrop(e);
+              }}
               className={[
                 'relative border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-2 cursor-pointer transition-colors',
+                isUploading ? 'pointer-events-none opacity-70' : '',
                 isDragging
                   ? 'border-violet-500 bg-violet-500/10'
                   : 'border-white/10 hover:border-white/20',
@@ -213,16 +230,20 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
               <input
                 type="file"
                 accept="image/*"
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                disabled={isUploading}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-not-allowed"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleFile(f);
                 }}
               />
               {isUploading ? (
-                <div className="flex items-center gap-2 text-zinc-400 text-sm">
-                  <div className="w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-                  Chargement...
+                <div className="w-full space-y-3 py-2">
+                  <Progress
+                    value={50}
+                    className="h-1.5 bg-zinc-800 animate-pulse [&>div]:bg-violet-600 [&>div]:transition-none"
+                  />
+                  <p className="text-xs text-zinc-500 text-center">Chargement en cours...</p>
                 </div>
               ) : (
                 <>
