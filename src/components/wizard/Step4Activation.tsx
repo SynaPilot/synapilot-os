@@ -130,6 +130,7 @@ export function Step4Activation() {
   const mountedRef = useRef(true);
   const timersRef = useRef<number[]>([]);
   const confettiFiredRef = useRef(false);
+  const hasCalledEdgeFunction = useRef(false);
 
   // ── Cleanup all timers on unmount ──────────────────────────────────────────
   useEffect(() => {
@@ -202,18 +203,19 @@ export function Step4Activation() {
     }
   }, [stepData]);
 
-  // ── Mount: start animation + fire N8N in parallel ─────────────────────────
-  useEffect(() => {
+  // ── Activation: user-triggered, fires once per session ────────────────────
+  const startActivation = useCallback(() => {
+    if (hasCalledEdgeFunction.current) return;
+    hasCalledEdgeFunction.current = true;
+
     dispatch({ type: 'START' });
 
-    // PHASE 3: sequential item activations (t=600ms, then every 700ms)
     for (let i = 0; i < 8; i++) {
       const activateId = window.setTimeout(() => {
         if (!mountedRef.current) return;
         dispatch({ type: 'ITEM_ACTIVATED' });
         setPulsingIndex(i);
         setAnnouncement(`Workflow ${WORKFLOWS[i].label} activé`);
-        // Clear pulse after animation completes (300ms) + margin (100ms)
         const clearId = window.setTimeout(() => {
           if (mountedRef.current) setPulsingIndex(null);
         }, 400);
@@ -222,13 +224,11 @@ export function Step4Activation() {
       timersRef.current.push(activateId);
     }
 
-    // PHASE 4: N8N fires at t=600ms in parallel with Phase 3
     const n8nId = window.setTimeout(() => {
       if (mountedRef.current) callN8N();
     }, 600);
     timersRef.current.push(n8nId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [callN8N]);
 
   // ── Announce phase transitions to screen readers ───────────────────────────
   useEffect(() => {
@@ -409,6 +409,26 @@ export function Step4Activation() {
             );
           })}
         </motion.div>
+
+        {/* Activation CTA — shown only in idle state, explicit user trigger */}
+        <AnimatePresence>
+          {phase === 'idle' && (
+            <motion.div
+              key="activate-cta"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Button
+                onClick={startActivation}
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-medium h-11"
+              >
+                Activer mes 8 workflows →
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* "Finalisation..." pulsing text while waiting for N8N */}
         <AnimatePresence>
