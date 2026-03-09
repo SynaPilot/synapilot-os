@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useWizardStore } from '@/store/wizardStore';
+import { useAuth } from '@/contexts/AuthContext';
 import type { N8NProvisioningResponse } from '@/types/wizard.types';
 
 // ─── Workflow items ───────────────────────────────────────────────────────────
@@ -118,6 +119,7 @@ const cardEntryVariants = {
 export function Step4Activation() {
   const navigate = useNavigate();
   const { stepData, markComplete } = useWizardStore();
+  const { organizationId } = useAuth();
   const [state, dispatch] = useReducer(activationReducer, INITIAL_STATE);
   const { phase, activatedCount } = state;
 
@@ -258,10 +260,20 @@ export function Step4Activation() {
     callN8N();
   }, [callN8N]);
 
-  const handleNavigateDashboard = useCallback(() => {
+  const handleNavigateDashboard = useCallback(async () => {
+    if (organizationId) {
+      try {
+        await supabase
+          .from('organizations')
+          .update({ onboarding_completed: true })
+          .eq('id', organizationId);
+      } catch (err) {
+        console.error('[onboarding] Failed to write onboarding_completed:', err);
+      }
+    }
     markComplete();
     navigate('/dashboard');
-  }, [markComplete, navigate]);
+  }, [markComplete, navigate, organizationId]);
 
   const progressPercent = (activatedCount / 8) * 100;
 
