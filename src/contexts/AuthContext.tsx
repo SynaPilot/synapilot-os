@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -26,9 +26,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<number | null>(null);
 
   // Fetch organization ID, profile ID and role when user changes
   useEffect(() => {
+    retryCountRef.current = 0;
+
     async function fetchOrganizationId() {
       if (user) {
         const { data, error } = await supabase
@@ -38,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (data && !error) {
+          retryCountRef.current = 0;
           setOrganizationId(data.organization_id);
           setProfileId(data.id);
 
@@ -49,13 +54,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
 
           setUserRole(roleData?.role ?? null);
+          setLoading(false);
         } else {
           console.error('Failed to fetch organization:', error);
-          setOrganizationId(null);
-          setProfileId(null);
-          setUserRole(null);
+          if (retryCountRef.current === 0) {
+            retryCountRef.current = 1;
+            retryTimeoutRef.current = window.setTimeout(() => {
+              retryTimeoutRef.current = null;
+              fetchOrganizationId();
+            }, 1500);
+          } else {
+            setOrganizationId(null);
+            setProfileId(null);
+            setUserRole(null);
+            setLoading(false);
+          }
         }
-        setLoading(false);
       } else {
         setOrganizationId(null);
         setProfileId(null);
@@ -65,6 +79,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     fetchOrganizationId();
+
+    return () => {
+      if (retryTimeoutRef.current !== null) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    };
   }, [user]);
 
   useEffect(() => {
