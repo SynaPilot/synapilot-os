@@ -55,10 +55,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfileId(null);
           setUserRole(null);
         }
+        setLoading(false);
       } else {
         setOrganizationId(null);
         setProfileId(null);
         setUserRole(null);
+        setLoading(false);
       }
     }
 
@@ -71,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
       }
     );
 
@@ -79,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

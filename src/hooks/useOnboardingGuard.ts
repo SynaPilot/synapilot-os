@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export function useOnboardingGuard() {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const { user, organizationId, loading: authLoading } = useAuth();
+  const { user, organizationId, userRole, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -21,25 +21,18 @@ export function useOnboardingGuard() {
       return;
     }
 
+    if (userRole === null) return;
+
     async function check() {
-      const [orgResult, roleResult] = await Promise.all([
-        supabase
-          .from('organizations')
-          .select('onboarding_completed')
-          .eq('id', organizationId!)
-          .single(),
-        supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user!.id)
-          .eq('organization_id', organizationId!)
-          .single(),
-      ]);
+      const { data } = await supabase
+        .from('organizations')
+        .select('onboarding_completed')
+        .eq('id', organizationId!)
+        .single();
 
-      const onboardingCompleted = orgResult.data?.onboarding_completed;
-      const role = roleResult.data?.role;
+      const onboardingCompleted = data?.onboarding_completed;
 
-      if (onboardingCompleted || role !== 'admin') {
+      if (onboardingCompleted === true || userRole !== 'admin') {
         navigate('/dashboard', { replace: true });
       } else {
         setIsLoading(false);
@@ -47,7 +40,7 @@ export function useOnboardingGuard() {
     }
 
     check();
-  }, [authLoading, user, organizationId, navigate]);
+  }, [authLoading, user, organizationId, userRole, navigate]);
 
   return { isLoading };
 }

@@ -40,14 +40,22 @@ export function useProfile() {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*, user_roles(role)')
+        .select('*')
         .eq('user_id', user.id)
         .single();
 
-      if (error) throw error;
-      return data;
+      if (profileError) throw profileError;
+
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('organization_id', profileData.organization_id)
+        .single();
+
+      return { ...profileData, user_roles: roleData ? [roleData] : [] };
     },
     enabled: !!user,
   });
