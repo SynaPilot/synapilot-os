@@ -100,7 +100,7 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
         setUploadError(
           isBucketMissing
             ? "Upload indisponible — vous pourrez ajouter votre logo plus tard"
-            : 'Erreur upload'
+            : "Impossible d'envoyer le fichier. Réessayez ou passez cette étape."
         );
         setIsUploading(false);
         return;
@@ -176,6 +176,9 @@ export function Step1AgencyInfo({ className }: { className?: string }) {
             <span>1</span>
             <span>50</span>
           </div>
+          <p className="text-zinc-600 text-xs">
+            Incluez tous les collaborateurs qui utiliseront SynaPilot. Ce nombre peut être ajusté depuis les paramètres.
+          </p>
         </div>
 
         {/* logo_url */}

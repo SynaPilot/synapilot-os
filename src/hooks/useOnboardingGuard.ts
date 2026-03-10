@@ -9,51 +9,49 @@ export function useOnboardingGuard() {
   const { user, organizationId, userRole, loading: authLoading } = useAuth();
 
   useEffect(() => {
-  const t = performance.now().toFixed(1);
-  console.log(`[Guard t=${t}ms] authLoading:`, authLoading, 'user:', !!user, 'orgId:', organizationId, 'role:', userRole);
+    if (authLoading) return;
 
-  if (authLoading) return;
-
-  if (!user) {
-    console.log('[Guard] → /login (no user)');
-    navigate('/login', { replace: true });
-    return;
-  }
-
-  if (!organizationId) {
-    console.log('[Guard] → /dashboard (no orgId)');
-    navigate('/dashboard', { replace: true });
-    return;
-  }
-
-  if (userRole === null) {
-    console.log('[Guard] waiting for role...');
-    return;
-  }
-
-  async function check() {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('onboarding_completed')
-      .eq('id', organizationId!)
-      .single();
-
-    console.log('[Guard] DB response:', data, 'error:', error);
-
-    const onboardingCompleted = data?.onboarding_completed;
-
-    if (onboardingCompleted === true || userRole !== 'admin') {
-      console.log('[Guard] → /dashboard. onboarding_completed:', onboardingCompleted, 'role:', userRole);
-      navigate('/dashboard', { replace: true });
-    } else {
-      console.log('[Guard] ✅ PASS — showing onboarding');
-      localStorage.removeItem('synapilot-wizard');
-      setIsLoading(false);
+    if (!user) {
+      navigate('/login', { replace: true });
+      return;
     }
-  }
 
-  check();
-}, [authLoading, user, organizationId, userRole, navigate]);
+    if (!organizationId) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    if (userRole === null) return;
+
+    async function check() {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('onboarding_completed')
+        .eq('id', organizationId!)
+        .single();
+
+      if (error) {
+        // DB query failed — non-admins go to dashboard; admins see the wizard
+        // (same routing outcome as when onboarding_completed is indeterminate)
+        if (userRole !== 'admin') {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+        localStorage.removeItem('synapilot-wizard');
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.onboarding_completed === true || userRole !== 'admin') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        localStorage.removeItem('synapilot-wizard');
+        setIsLoading(false);
+      }
+    }
+
+    check();
+  }, [authLoading, user, organizationId, userRole, navigate]);
 
   return { isLoading };
 }
