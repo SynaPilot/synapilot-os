@@ -31,18 +31,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch organization ID, profile ID and role when user changes
   useEffect(() => {
+    setLoading(true);
     retryCountRef.current = 0;
+    console.log(`[AUTH] useEffect([user]) fired. user=${user?.id ?? 'null'}, loading is currently=${loading}`);
 
     async function fetchOrganizationId() {
       if (user) {
+        console.log(`[AUTH] fetchOrganizationId: user=${user.id}, querying profiles...`);
         const { data, error } = await supabase
           .from('profiles')
           .select('id, organization_id')
           .eq('user_id', user.id)
           .single();
 
+        console.log(`[AUTH] profiles response: data=${JSON.stringify(data)}, error=${JSON.stringify(error)}`);
+
         if (data && !error) {
           retryCountRef.current = 0;
+          console.log(`[AUTH] Setting organizationId=${data.organization_id}, querying user_roles...`);
           setOrganizationId(data.organization_id);
           setProfileId(data.id);
 
@@ -53,17 +59,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .eq('organization_id', data.organization_id)
             .single();
 
+          console.log(`[AUTH] user_roles response: role=${roleData?.role ?? 'null'}`);
           setUserRole(roleData?.role ?? null);
+          console.log(`[AUTH] ✅ setLoading(false) — orgId=${data.organization_id}, role=${roleData?.role}`);
           setLoading(false);
         } else {
           console.error('Failed to fetch organization:', error);
           if (retryCountRef.current === 0) {
+            console.log(`[AUTH] profiles failed, scheduling retry in 1500ms...`);
             retryCountRef.current = 1;
             retryTimeoutRef.current = window.setTimeout(() => {
               retryTimeoutRef.current = null;
               fetchOrganizationId();
             }, 1500);
           } else {
+            console.log(`[AUTH] ⚠️ retry also failed. setLoading(false) with null orgId.`);
             setOrganizationId(null);
             setProfileId(null);
             setUserRole(null);
@@ -71,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } else {
+        console.log(`[AUTH] user=null → setLoading(false) with null orgId. THIS IS THE DANGEROUS WINDOW.`);
         setOrganizationId(null);
         setProfileId(null);
         setUserRole(null);

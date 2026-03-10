@@ -9,40 +9,51 @@ export function useOnboardingGuard() {
   const { user, organizationId, userRole, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (authLoading) return;
+  const t = performance.now().toFixed(1);
+  console.log(`[Guard t=${t}ms] authLoading:`, authLoading, 'user:', !!user, 'orgId:', organizationId, 'role:', userRole);
 
-    if (!user) {
-      navigate('/login', { replace: true });
-      return;
-    }
+  if (authLoading) return;
 
-    if (!organizationId) {
+  if (!user) {
+    console.log('[Guard] → /login (no user)');
+    navigate('/login', { replace: true });
+    return;
+  }
+
+  if (!organizationId) {
+    console.log('[Guard] → /dashboard (no orgId)');
+    navigate('/dashboard', { replace: true });
+    return;
+  }
+
+  if (userRole === null) {
+    console.log('[Guard] waiting for role...');
+    return;
+  }
+
+  async function check() {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('onboarding_completed')
+      .eq('id', organizationId!)
+      .single();
+
+    console.log('[Guard] DB response:', data, 'error:', error);
+
+    const onboardingCompleted = data?.onboarding_completed;
+
+    if (onboardingCompleted === true || userRole !== 'admin') {
+      console.log('[Guard] → /dashboard. onboarding_completed:', onboardingCompleted, 'role:', userRole);
       navigate('/dashboard', { replace: true });
-      return;
+    } else {
+      console.log('[Guard] ✅ PASS — showing onboarding');
+      localStorage.removeItem('synapilot-wizard');
+      setIsLoading(false);
     }
+  }
 
-    if (userRole === null) return;
-
-    async function check() {
-      const { data } = await supabase
-        .from('organizations')
-        .select('onboarding_completed')
-        .eq('id', organizationId!)
-        .single();
-
-      const onboardingCompleted = data?.onboarding_completed;
-
-      if (onboardingCompleted === true || userRole !== 'admin') {
-        navigate('/dashboard', { replace: true });
-      } else {
-        // Clear any stale wizard state persisted from a previous aborted session
-        localStorage.removeItem('synapilot-wizard');
-        setIsLoading(false);
-      }
-    }
-
-    check();
-  }, [authLoading, user, organizationId, userRole, navigate]);
+  check();
+}, [authLoading, user, organizationId, userRole, navigate]);
 
   return { isLoading };
 }
