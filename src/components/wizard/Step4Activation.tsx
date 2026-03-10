@@ -24,14 +24,21 @@ import type { N8NProvisioningResponse } from '@/types/wizard.types';
 
 // ─── Workflow items ───────────────────────────────────────────────────────────
 const WORKFLOWS = [
-  { label: 'Qualification Lead automatique', Icon: Zap },
-  { label: 'Relance post-visite', Icon: RefreshCw },
-  { label: 'Alerte directeur pipeline', Icon: AlertTriangle },
-  { label: 'Rapport hebdomadaire', Icon: BarChart2 },
-  { label: 'Diffusion mandats multi-portails', Icon: Share2 },
-  { label: 'Smart Matching acquéreurs', Icon: Target },
-  { label: 'Onboarding nouveaux agents', Icon: Users },
-  { label: 'Réactivation leads froids', Icon: Flame },
+  { label: 'Qualification Lead automatique',   Icon: Zap,           description: "Priorise vos leads selon leur potentiel d'achat" },
+  { label: 'Relance post-visite',              Icon: RefreshCw,     description: 'Envoie un suivi personnalisé 24h après chaque visite' },
+  { label: 'Alerte directeur pipeline',        Icon: AlertTriangle, description: "Vous avertit si un deal reste sans activité 7 jours" },
+  { label: 'Rapport hebdomadaire',             Icon: BarChart2,     description: 'Vos KPIs envoyés automatiquement chaque lundi à 7h' },
+  { label: 'Diffusion mandats multi-portails', Icon: Share2,        description: 'Publie vos biens sur tous vos portails simultanément' },
+  { label: 'Smart Matching acquéreurs',        Icon: Target,        description: 'Identifie les acheteurs correspondant à chaque bien' },
+  { label: 'Onboarding nouveaux agents',       Icon: Users,         description: 'Guide automatiquement chaque nouveau collaborateur' },
+  { label: 'Réactivation leads froids',        Icon: Flame,         description: 'Relance les contacts inactifs depuis 30 jours' },
+] as const;
+
+// ─── High-level phases (derived from activatedCount) ─────────────────────────
+const PHASES = [
+  { label: 'Espace de travail', threshold: 3 },
+  { label: 'Automatisations',   threshold: 6 },
+  { label: 'Finalisation',      threshold: 8 },
 ] as const;
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -335,6 +342,33 @@ export function Step4Activation() {
           </p>
         </motion.div>
 
+        {/* Phase summary strip — visible once activation starts */}
+        {phase !== 'idle' && (
+          <div className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-white/5 border border-white/5">
+            {PHASES.map(({ label, threshold }, i) => {
+              const done = activatedCount >= threshold;
+              const active = !done && (i === 0 || activatedCount >= PHASES[i - 1].threshold);
+              return (
+                <div key={label} className="flex items-center gap-1.5">
+                  {done ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  ) : active ? (
+                    <Loader2 className="w-3.5 h-3.5 text-violet-400 animate-spin shrink-0" />
+                  ) : (
+                    <div className="w-3.5 h-3.5 rounded-full border border-zinc-700 shrink-0" />
+                  )}
+                  <span className={[
+                    'text-xs',
+                    done ? 'text-green-400' : active ? 'text-violet-300' : 'text-zinc-600',
+                  ].join(' ')}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Workflow cards with stagger entry */}
         <motion.div
           variants={listVariants}
@@ -342,7 +376,7 @@ export function Step4Activation() {
           animate="visible"
           className="space-y-3"
         >
-          {WORKFLOWS.map(({ label, Icon }, index) => {
+          {WORKFLOWS.map(({ label, Icon, description }, index) => {
             const isDone = index < activatedCount;
             const isPulsing = pulsingIndex === index;
 
@@ -382,14 +416,19 @@ export function Step4Activation() {
                     }`}
                   />
 
-                  {/* Workflow name */}
-                  <span
-                    className={`text-sm font-medium flex-1 transition-colors duration-300 ${
+                  {/* Workflow name + description */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium transition-colors duration-300 ${
                       isDone ? 'text-zinc-100' : 'text-zinc-400'
-                    }`}
-                  >
-                    {label}
-                  </span>
+                    }`}>
+                      {label}
+                    </p>
+                    <p className={`text-xs mt-0.5 transition-colors duration-300 ${
+                      isDone ? 'text-zinc-500' : 'text-zinc-600'
+                    }`}>
+                      {description}
+                    </p>
+                  </div>
 
                   {/* Status badge */}
                   <AnimatePresence mode="wait">
