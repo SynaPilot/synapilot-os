@@ -6,13 +6,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertCircle,
   CheckCircle,
+  ChevronDown,
   ExternalLink,
   Eye,
   EyeOff,
+  HelpCircle,
   Info,
   Loader2,
   Lock,
-  Settings2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,62 +21,206 @@ import { Button } from '@/components/ui/button';
 import { useWizardStore } from '@/store/wizardStore';
 import { supabase } from '@/integrations/supabase/client';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type DetectedProvider =
+  | 'gmail'
+  | 'outlook-personal'
+  | 'outlook-365'
+  | 'ovh'
+  | 'ionos'
+  | 'custom';
+
+type TestStatus = 'idle' | 'loading' | 'success' | 'error';
+
+// ── Provider SMTP configs ─────────────────────────────────────────────────────
+
+interface ProviderConfig {
+  host: string;
+  port: number;
+}
+
+const PROVIDER_CONFIGS: Record<Exclude<DetectedProvider, 'custom'>, ProviderConfig> = {
+  gmail:              { host: 'smtp.gmail.com',        port: 587 },
+  'outlook-personal': { host: 'smtp-mail.outlook.com', port: 587 },
+  'outlook-365':      { host: 'smtp.office365.com',    port: 587 },
+  ovh:                { host: 'ssl0.ovh.net',           port: 465 },
+  ionos:              { host: 'smtp.ionos.fr',          port: 587 },
+};
+
+// ── Provider detection ────────────────────────────────────────────────────────
+
+function detectProviderSync(email: string): DetectedProvider {
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (!domain) return 'custom';
+  if (domain === 'gmail.com' || domain === 'googlemail.com') return 'gmail';
+  if (['outlook.com', 'hotmail.com', 'live.com', 'msn.com'].includes(domain))
+    return 'outlook-personal';
+  if (domain.endsWith('.onmicrosoft.com')) return 'outlook-365';
+  if (domain.includes('ionos') || domain.includes('1and1')) return 'ionos';
+  if (domain.includes('ovh')) return 'ovh';
+  return 'custom';
+}
+
+async function detectProviderAsync(email: string): Promise<DetectedProvider> {
+  const syncResult = detectProviderSync(email);
+  if (syncResult !== 'custom') return syncResult;
+
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (!domain) return 'custom';
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`,
+      { signal: controller.signal },
+    );
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const json = (await res.json()) as { Answer?: Array<{ data: string }> };
+      const mx = (json.Answer ?? []).map((a) => a.data.toLowerCase());
+      if (mx.some((r) => r.includes('ovh'))) return 'ovh';
+      if (mx.some((r) => r.includes('protection.outlook.com'))) return 'outlook-365';
+    }
+  } catch {
+    // DNS lookup failed — fall through
+  }
+
+  return 'custom';
+}
+
+function restoreProvider(host: string, email: string): DetectedProvider {
+  if (host) {
+    const entry = (
+      Object.entries(PROVIDER_CONFIGS) as Array<
+        [Exclude<DetectedProvider, 'custom'>, ProviderConfig]
+      >
+    ).find(([, cfg]) => cfg.host === host);
+    if (entry) return entry[0];
+    return 'custom';
+  }
+  if (email) return detectProviderSync(email);
+  return 'custom';
+}
+
+// ── Password config per provider ──────────────────────────────────────────────
+
+function getPasswordConfig(provider: DetectedProvider): {
+  label: string;
+  placeholder: string;
+  helper: string | null;
+} {
+  switch (provider) {
+    case 'gmail':
+      return {
+        label: "Mot de passe d'application Google *",
+        placeholder: 'xxxx xxxx xxxx xxxx',
+        helper: null,
+      };
+    case 'outlook-personal':
+      return {
+        label: 'Mot de passe Microsoft *',
+        placeholder: '',
+        helper: 'Votre mot de passe de connexion habituel.',
+      };
+    case 'outlook-365':
+      return {
+        label: 'Mot de passe Microsoft 365 *',
+        placeholder: '',
+        helper: 'Votre mot de passe de connexion professionnel.',
+      };
+    case 'ovh':
+      return {
+        label: 'Mot de passe de votre compte email *',
+        placeholder: '',
+        helper:
+          "C'est le mot de passe que vous avez défini dans votre espace client OVH, pas votre mot de passe OVH principal.",
+      };
+    case 'ionos':
+      return {
+        label: 'Mot de passe de votre compte email *',
+        placeholder: '',
+        helper: 'Le mot de passe défini dans votre interface IONOS pour cette adresse email.',
+      };
+    case 'custom':
+      return { label: 'Mot de passe *', placeholder: '', helper: null };
+  }
+}
+
+// ── Provider-aware error messages ─────────────────────────────────────────────
+
+function mapTestError(raw: string, provider: DetectedProvider): string {
+  const s = raw.toLowerCase();
+
+  const isAuth =
+    s.includes('auth') ||
+    s.includes('credential') ||
+    s.includes('535') ||
+    s.includes('534') ||
+    s.includes('invalid login') ||
+    s.includes('password') ||
+    s.includes('username');
+
+  const isNetwork =
+    s.includes('timeout') ||
+    s.includes('timed out') ||
+    s.includes('enotfound') ||
+    s.includes('econnrefused') ||
+    s.includes('getaddrinfo');
+
+  if (isNetwork) return 'Le serveur ne répond pas. Vérifiez votre connexion internet.';
+
+  if (isAuth) {
+    switch (provider) {
+      case 'gmail':
+        return "Mot de passe incorrect. Assurez-vous d'utiliser un mot de passe d'application (16 caractères), pas votre mot de passe Gmail habituel.";
+      case 'outlook-personal':
+        return 'Mot de passe incorrect. Vérifiez votre mot de passe Microsoft.';
+      case 'outlook-365':
+        return 'Mot de passe incorrect. Vérifiez votre mot de passe Microsoft 365.';
+      case 'ovh':
+        return "Mot de passe incorrect. Utilisez le mot de passe de votre compte email OVH, pas celui de votre espace client.";
+      case 'ionos':
+        return "Mot de passe incorrect. Utilisez le mot de passe de votre compte email IONOS, pas celui de votre interface principale.";
+      default:
+        return 'Identifiants incorrects. Vérifiez votre email et mot de passe.';
+    }
+  }
+
+  return 'Connexion échouée. Vérifiez vos identifiants et réessayez.';
+}
+
+// ── Zod schema ────────────────────────────────────────────────────────────────
+
 const schema = z.object({
-  smtp_host: z.string().min(1, 'Hôte SMTP requis'),
-  smtp_port: z
-    .number({ invalid_type_error: 'Port requis' })
-    .int()
-    .min(1)
-    .max(65535),
-  smtp_user: z.string().email('Email invalide'),
+  smtp_host:     z.string().min(1, "Serveur d'envoi requis"),
+  smtp_port:     z.number({ invalid_type_error: 'Port requis' }).int().min(1).max(65535),
+  smtp_user:     z.string().email('Email invalide'),
   smtp_password: z.string().min(1, 'Mot de passe requis'),
 });
 
 type FormData = z.infer<typeof schema>;
-type TestStatus = 'idle' | 'loading' | 'success' | 'error';
-type Preset = 'gmail' | 'outlook' | 'custom';
 
-const PRESETS: Record<Exclude<Preset, 'custom'>, { host: string; port: number }> = {
-  gmail:   { host: 'smtp.gmail.com',       port: 587 },
-  outlook: { host: 'smtp.office365.com',   port: 587 },
-};
-
-// Maps raw SMTP error strings to human-readable French messages
-function mapTestError(raw: string): string {
-  const s = raw.toLowerCase();
-  if (
-    s.includes('auth') || s.includes('credential') ||
-    s.includes('535')  || s.includes('534')         ||
-    s.includes('invalid login') || s.includes('password') ||
-    s.includes('username')
-  ) {
-    return 'Identifiants incorrects. Vérifiez votre email et mot de passe.';
-  }
-  if (
-    s.includes('timeout')    || s.includes('timed out') ||
-    s.includes('enotfound')  || s.includes('econnrefused') ||
-    s.includes('getaddrinfo')
-  ) {
-    return 'Le serveur ne répond pas. Vérifiez votre hôte SMTP ou réessayez.';
-  }
-  return 'Connexion échouée. Vérifiez vos paramètres.';
-}
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function Step2EmailConfig({ className }: { className?: string }) {
   const { stepData, setStepData, setIsStepValid } = useWizardStore();
 
-  // Restore active preset from previously stored host value
-  const [preset, setPreset] = useState<Preset>(() => {
-    const host = stepData.step2.smtp_host;
-    if (host === PRESETS.gmail.host)   return 'gmail';
-    if (host === PRESETS.outlook.host) return 'outlook';
-    return 'custom';
-  });
+  const [provider, setProvider] = useState<DetectedProvider>(() =>
+    restoreProvider(
+      stepData.step2.smtp_host ?? '',
+      stepData.step2.smtp_user ?? '',
+    ),
+  );
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [testStatus, setTestStatus] = useState<TestStatus>('idle');
-  const [testError, setTestError] = useState('');
-  const [testPassed, setTestPassed] = useState(stepData.step2.test_passed ?? false);
+  const [isDetecting, setIsDetecting]       = useState(false);
+  const [showAdvanced, setShowAdvanced]     = useState(false);
+  const [showGmailGuide, setShowGmailGuide] = useState(false);
+  const [showPassword, setShowPassword]     = useState(false);
+  const [testStatus, setTestStatus]         = useState<TestStatus>('idle');
+  const [testError, setTestError]           = useState('');
+  const [testPassed, setTestPassed]         = useState(stepData.step2.test_passed ?? false);
   const isFirstRender = useRef(true);
 
   const {
@@ -98,9 +243,9 @@ export function Step2EmailConfig({ className }: { className?: string }) {
   const watched = watch();
 
   const allFilled =
-    (watched.smtp_host?.length     ?? 0) > 0 &&
-    (watched.smtp_user?.length     ?? 0) > 0 &&
-    (watched.smtp_password?.length ?? 0) > 0;
+    (watched.smtp_user?.length ?? 0) > 0 &&
+    (watched.smtp_password?.length ?? 0) > 0 &&
+    (provider !== 'custom' || (watched.smtp_host?.length ?? 0) > 0);
 
   const isValid = allFilled && testPassed;
 
@@ -118,7 +263,7 @@ export function Step2EmailConfig({ className }: { className?: string }) {
     });
   }, [watched.smtp_host, watched.smtp_port, watched.smtp_user, watched.smtp_password, setStepData]);
 
-  // Invalidate test result whenever any credential field changes (skip first mount)
+  // Invalidate test whenever credentials change (skip first mount)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -130,17 +275,51 @@ export function Step2EmailConfig({ className }: { className?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watched.smtp_host, watched.smtp_port, watched.smtp_user, watched.smtp_password]);
 
-  // Apply a provider preset (auto-fills host + port, resets test)
-  const applyPreset = (p: Preset) => {
-    setPreset(p);
+  // ── Apply a detected/selected provider ────────────────────────────────────
+
+  const applyProvider = (p: DetectedProvider) => {
+    setProvider(p);
     if (p !== 'custom') {
-      setValue('smtp_host', PRESETS[p].host, { shouldValidate: true });
-      setValue('smtp_port', PRESETS[p].port, { shouldValidate: true });
+      const cfg = PROVIDER_CONFIGS[p];
+      setValue('smtp_host', cfg.host, { shouldValidate: true });
+      setValue('smtp_port', cfg.port, { shouldValidate: true });
     }
+  };
+
+  // ── Email onBlur: detect provider asynchronously ───────────────────────────
+
+  const emailRegistration = register('smtp_user');
+
+  const handleEmailBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    void emailRegistration.onBlur(e); // preserve RHF touched/validation state
+    const email = e.target.value;
+    if (!email.includes('@')) return;
+
+    setIsDetecting(true);
+    try {
+      const p = await detectProviderAsync(email);
+      applyProvider(p);
+      if (p !== 'custom') {
+        setShowAdvanced(false);
+        setShowGmailGuide(false);
+      }
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  // ── Manual override: revert to custom ─────────────────────────────────────
+
+  const switchToCustom = () => {
+    setProvider('custom');
+    setValue('smtp_host', '', { shouldValidate: false });
+    setValue('smtp_port', 587, { shouldValidate: false });
     setTestPassed(false);
     setTestStatus('idle');
     setStepData('step2', { test_passed: false });
   };
+
+  // ── Connection test ────────────────────────────────────────────────────────
 
   const handleTest = async () => {
     const valid = await trigger();
@@ -162,14 +341,14 @@ export function Step2EmailConfig({ className }: { className?: string }) {
           },
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 15_000)
+          setTimeout(() => reject(new Error('timeout')), 15_000),
         ),
       ]);
 
       if (error || data?.success === false) {
         const raw = data?.error ?? error?.message ?? 'Connexion échouée';
         setTestStatus('error');
-        setTestError(mapTestError(raw));
+        setTestError(mapTestError(raw, provider));
         setTestPassed(false);
         setStepData('step2', { test_passed: false });
       } else {
@@ -180,11 +359,14 @@ export function Step2EmailConfig({ className }: { className?: string }) {
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Connexion échouée';
       setTestStatus('error');
-      setTestError(mapTestError(raw));
+      setTestError(mapTestError(raw, provider));
       setTestPassed(false);
       setStepData('step2', { test_passed: false });
     }
   };
+
+  const pwdCfg    = getPasswordConfig(provider);
+  const emailTyped = (watched.smtp_user?.length ?? 0) > 0;
 
   return (
     <motion.div
@@ -203,38 +385,62 @@ export function Step2EmailConfig({ className }: { className?: string }) {
 
       <div className="space-y-5">
 
-        {/* ── Provider selector ─────────────────────────────────────────────── */}
+        {/* ── Email (detection trigger) ─────────────────────────────────────── */}
         <div className="space-y-2">
-          <p className="text-zinc-400 text-sm">Votre messagerie professionnelle</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['gmail', 'outlook', 'custom'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className={[
-                  'flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 border text-sm font-medium transition-all',
-                  preset === p
-                    ? 'bg-violet-600/20 border-violet-500 text-violet-300'
-                    : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-zinc-200',
-                ].join(' ')}
-              >
-                {p === 'gmail'   && <span className="font-bold text-base leading-none">G</span>}
-                {p === 'outlook' && <span className="font-bold text-base leading-none">O</span>}
-                {p === 'custom'  && <Settings2 className="w-4 h-4" />}
-                <span>
-                  {p === 'gmail' ? 'Gmail' : p === 'outlook' ? 'Outlook' : 'Autre'}
-                </span>
-              </button>
-            ))}
+          <Label className="text-zinc-400 text-sm">Votre adresse email professionnelle *</Label>
+          <div className="relative">
+            <Input
+              {...emailRegistration}
+              onBlur={handleEmailBlur}
+              type="email"
+              placeholder="contact@votreagence.fr"
+              className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
+            />
+            {isDetecting && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
+              </div>
+            )}
           </div>
+          {errors.smtp_user && (
+            <p className="text-red-400 text-xs">{errors.smtp_user.message}</p>
+          )}
+
+          {/* Detected provider badge + override link */}
+          <AnimatePresence>
+            {provider !== 'custom' && emailTyped && !isDetecting && (
+              <motion.div
+                key="provider-badge"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center justify-between"
+              >
+                <p className="text-xs text-zinc-500">
+                  {provider === 'gmail'            && '✓ Gmail détecté'}
+                  {provider === 'outlook-personal' && '✓ Microsoft Outlook / Hotmail détecté'}
+                  {provider === 'outlook-365'      && '✓ Microsoft 365 professionnel détecté'}
+                  {provider === 'ovh'              && '✓ OVH détecté'}
+                  {provider === 'ionos'            && '✓ IONOS détecté'}
+                </p>
+                <button
+                  type="button"
+                  onClick={switchToCustom}
+                  className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  Changer de configuration
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* ── Configuration avancée notice (custom only) ────────────────────── */}
+        {/* ── Outlook 365: admin IT notice ──────────────────────────────────── */}
         <AnimatePresence>
-          {preset === 'custom' && (
+          {provider === 'outlook-365' && (
             <motion.div
-              key="custom-notice"
+              key="o365-notice"
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -243,79 +449,44 @@ export function Step2EmailConfig({ className }: { className?: string }) {
             >
               <Info className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" />
               <p className="text-xs text-zinc-500 leading-relaxed">
-                <span className="text-zinc-400 font-medium">Configuration avancée</span>
-                {' '}— Pour les autres messageries professionnelles (OVH, Ionos, etc.)
+                Si la connexion échoue, votre administrateur IT doit activer{' '}
+                <span className="text-zinc-400 font-medium">
+                  l'authentification SMTP dans le centre d'administration Microsoft 365.
+                </span>
               </p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── smtp_host — hidden for Gmail / Outlook presets ────────────────── */}
-        {preset === 'custom' && (
-          <div className="space-y-2">
-            <Label className="text-zinc-400 text-sm">Hôte SMTP *</Label>
-            <Input
-              {...register('smtp_host')}
-              placeholder="smtp.votreagence.fr"
-              className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
-            />
-            {errors.smtp_host && (
-              <p className="text-red-400 text-xs">{errors.smtp_host.message}</p>
-            )}
-          </div>
-        )}
-
-        {/* ── smtp_port — hidden for Gmail / Outlook presets ────────────────── */}
-        {preset === 'custom' && (
-          <div className="space-y-2">
-            <Label className="text-zinc-400 text-sm">Port SMTP *</Label>
-            <Input
-              {...register('smtp_port', { valueAsNumber: true })}
-              type="number"
-              placeholder="587"
-              className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
-            />
-            {errors.smtp_port && (
-              <p className="text-red-400 text-xs">{errors.smtp_port.message}</p>
-            )}
-          </div>
-        )}
-
-        {/* ── smtp_user — label and placeholder adapt per preset ────────────── */}
-        <div className="space-y-2">
-          <Label className="text-zinc-400 text-sm">
-            {preset === 'gmail'
-              ? 'Votre adresse Gmail *'
-              : preset === 'outlook'
-                ? 'Votre adresse Outlook / Microsoft 365 *'
-                : 'Adresse email *'}
-          </Label>
-          <Input
-            {...register('smtp_user')}
-            type="email"
-            placeholder={
-              preset === 'gmail'
-                ? 'votre.prenom@gmail.com'
-                : preset === 'outlook'
-                  ? 'prenom.nom@votredomaine.fr'
-                  : 'contact@votreagence.fr'
-            }
-            className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
-          />
-          {errors.smtp_user && (
-            <p className="text-red-400 text-xs">{errors.smtp_user.message}</p>
+        {/* ── Custom: provider name hint ────────────────────────────────────── */}
+        <AnimatePresence>
+          {provider === 'custom' && emailTyped && (
+            <motion.div
+              key="provider-name"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-2"
+            >
+              <Label className="text-zinc-400 text-sm">Votre hébergeur email</Label>
+              <Input
+                type="text"
+                placeholder="Ex: Gandi, Infomaniak, La Poste..."
+                className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
+              />
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
-        {/* ── smtp_password — label + contextual helper adapt per preset ───── */}
+        {/* ── Password ─────────────────────────────────────────────────────── */}
         <div className="space-y-2">
-          <Label className="text-zinc-400 text-sm">
-            {preset === 'gmail' ? "Mot de passe d'application *" : 'Mot de passe *'}
-          </Label>
+          <Label className="text-zinc-400 text-sm">{pwdCfg.label}</Label>
           <div className="relative">
             <Input
               {...register('smtp_password')}
               type={showPassword ? 'text' : 'password'}
+              placeholder={pwdCfg.placeholder}
               className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 pr-10"
             />
             <button
@@ -331,37 +502,168 @@ export function Step2EmailConfig({ className }: { className?: string }) {
             <p className="text-red-400 text-xs">{errors.smtp_password.message}</p>
           )}
 
-          {/* Gmail: warn about app passwords + link */}
-          {preset === 'gmail' && (
-            <p className="text-zinc-500 text-xs leading-relaxed">
-              Pas votre mot de passe habituel —{' '}
-              <a
-                href="https://myaccount.google.com/apppasswords"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-violet-400 hover:text-violet-300 underline underline-offset-2 inline-flex items-center gap-0.5"
-              >
-                Comment créer un mot de passe d'application Gmail
-                <ExternalLink className="w-3 h-3 ml-0.5" />
-              </a>
-            </p>
+          {/* Static helper for non-Gmail providers */}
+          {pwdCfg.helper && (
+            <p className="text-zinc-500 text-xs leading-relaxed">{pwdCfg.helper}</p>
           )}
 
-          {/* Outlook: link to setup guide */}
-          {preset === 'outlook' && (
-            <p className="text-zinc-500 text-xs leading-relaxed">
-              <a
-                href="https://support.microsoft.com/fr-fr/office/param%C3%A8tres-pop-imap-et-smtp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-violet-400 hover:text-violet-300 underline underline-offset-2 inline-flex items-center gap-0.5"
+          {/* ── Feature 3: Gmail inline step-by-step guide ─────────────────── */}
+          {provider === 'gmail' && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowGmailGuide((v) => !v)}
+                className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
               >
-                Comment configurer Outlook pour SynaPilot
-                <ExternalLink className="w-3 h-3 ml-0.5" />
-              </a>
-            </p>
+                <HelpCircle className="w-3.5 h-3.5" />
+                Comment obtenir ce mot de passe ?
+              </button>
+
+              <AnimatePresence>
+                {showGmailGuide && (
+                  <motion.div
+                    key="gmail-guide"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-lg bg-white/5 border border-white/10 px-4 py-3 space-y-3">
+                      <div className="flex gap-3">
+                        <span className="text-zinc-400 text-sm shrink-0">1.</span>
+                        <div className="space-y-1">
+                          <p className="text-zinc-300 text-sm">
+                            🔒 Activez la validation en 2 étapes sur votre compte Google
+                          </p>
+                          <a
+                            href="https://myaccount.google.com/signinoptions/two-step-verification"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-violet-400 hover:text-violet-300 underline underline-offset-2 text-xs inline-flex items-center gap-0.5"
+                          >
+                            Activer la validation en 2 étapes
+                            <ExternalLink className="w-3 h-3 ml-0.5" />
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <span className="text-zinc-400 text-sm shrink-0">2.</span>
+                        <div className="space-y-1">
+                          <p className="text-zinc-300 text-sm">
+                            🔑 Créez un mot de passe d'application
+                          </p>
+                          <a
+                            href="https://myaccount.google.com/apppasswords"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-violet-400 hover:text-violet-300 underline underline-offset-2 text-xs inline-flex items-center gap-0.5"
+                          >
+                            Créer un mot de passe d'application
+                            <ExternalLink className="w-3 h-3 ml-0.5" />
+                          </a>
+                          <p className="text-zinc-500 text-xs">
+                            Choisissez "Autre" → tapez "SynaPilot" → Générer
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <span className="text-zinc-400 text-sm shrink-0">3.</span>
+                        <div className="space-y-1">
+                          <p className="text-zinc-300 text-sm">
+                            📋 Copiez le code à 16 caractères et collez-le ici
+                          </p>
+                          <p className="text-zinc-500 text-xs">
+                            Supprimez les espaces avant de coller
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </div>
+
+        {/* ── Custom: collapsible advanced settings (host + port) ───────────── */}
+        <AnimatePresence>
+          {provider === 'custom' && emailTyped && (
+            <motion.div
+              key="advanced-section"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <ChevronDown
+                  className={[
+                    'w-4 h-4 transition-transform duration-200',
+                    showAdvanced ? 'rotate-180' : '',
+                  ].join(' ')}
+                />
+                Paramètres avancés
+              </button>
+
+              <AnimatePresence>
+                {showAdvanced && (
+                  <motion.div
+                    key="advanced-fields"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 space-y-4">
+
+                      {/* Host */}
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400 text-sm">Serveur d'envoi *</Label>
+                        <Input
+                          {...register('smtp_host')}
+                          placeholder="smtp.votreagence.fr"
+                          className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
+                        />
+                        {errors.smtp_host && (
+                          <p className="text-red-400 text-xs">{errors.smtp_host.message}</p>
+                        )}
+                      </div>
+
+                      {/* Port */}
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400 text-sm">Port</Label>
+                        <Input
+                          {...register('smtp_port', { valueAsNumber: true })}
+                          type="number"
+                          min={1}
+                          max={65535}
+                          placeholder="587"
+                          className="bg-white/5 border-white/10 text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500"
+                        />
+                        {errors.smtp_port && (
+                          <p className="text-red-400 text-xs">{errors.smtp_port.message}</p>
+                        )}
+                        <p className="text-zinc-600 text-xs leading-relaxed">
+                          587 fonctionne pour la plupart des hébergeurs. Utilisez 465 si votre
+                          hébergeur le demande explicitement.
+                        </p>
+                      </div>
+
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Test button + feedback ────────────────────────────────────────── */}
         <div className="pt-2 space-y-3">
@@ -379,7 +681,7 @@ export function Step2EmailConfig({ className }: { className?: string }) {
             {testStatus === 'loading' ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Test en cours...
+                Vérification en cours...
               </>
             ) : testStatus === 'success' ? (
               <>
@@ -403,7 +705,7 @@ export function Step2EmailConfig({ className }: { className?: string }) {
               >
                 <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
                 <p className="text-green-300 text-sm">
-                  Connexion réussie — vous pouvez continuer
+                  ✓ Connexion réussie — vous pouvez continuer
                 </p>
               </motion.div>
             )}
