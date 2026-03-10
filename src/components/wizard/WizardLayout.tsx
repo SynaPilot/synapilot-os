@@ -2,7 +2,6 @@ import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, Mail, Bell, Zap, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { useWizardStore } from '@/store/wizardStore';
 
 const STEPS = [
@@ -19,7 +18,6 @@ interface WizardLayoutProps {
 
 export function WizardLayout({ children, isStepValid }: WizardLayoutProps) {
   const { currentStep, nextStep, prevStep } = useWizardStore();
-  const progressValue = (currentStep / 3) * 100;
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
@@ -80,20 +78,6 @@ export function WizardLayout({ children, isStepValid }: WizardLayoutProps) {
               </div>
             );
           })}
-        </div>
-
-        {/* Progress bar */}
-        <div className="mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Progress
-              value={progressValue}
-              className="h-1.5 bg-zinc-800 [&>div]:bg-violet-600 [&>div]:transition-all [&>div]:duration-500"
-            />
-          </motion.div>
         </div>
 
         {/* Step content */}
