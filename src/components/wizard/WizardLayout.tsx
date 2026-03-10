@@ -66,10 +66,10 @@ export function WizardLayout({ children, isStepValid }: WizardLayoutProps) {
                   )}
                 </motion.div>
 
-                {/* Label — hidden on mobile */}
+                {/* Label — inline on mobile (row layout), centered below on desktop */}
                 <span
                   className={[
-                    'hidden md:block mt-2 text-xs text-center',
+                    'text-xs ml-2 md:ml-0 md:mt-2 md:text-center',
                     isActive ? 'text-zinc-100' : 'text-zinc-500',
                   ].join(' ')}
                 >
@@ -100,7 +100,7 @@ export function WizardLayout({ children, isStepValid }: WizardLayoutProps) {
             <Button
               onClick={nextStep}
               disabled={!isStepValid}
-              className="w-full md:w-auto bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40"
+              className="w-full md:w-auto bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Continuer
             </Button>
